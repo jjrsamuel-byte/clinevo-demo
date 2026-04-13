@@ -29,7 +29,11 @@
     <div class="modal" id="modal"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@3/bundle/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/eventemitter3@5/dist/eventemitter3.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.js"></script>
+  <script>window.eventemitter3 = { EventEmitter: window.EventEmitter3 }; window.livekitClient = window.LivekitClient;</script>
+  <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.umd.js"></script>
+  <script>window.RetellWebClient = window.retellClientJsSdk && window.retellClientJsSdk.RetellWebClient;</script>
   <script src="/js/retell-call.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/state.js"></script>
