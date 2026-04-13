@@ -12,9 +12,20 @@ const DashboardView = {
   },
 
   async loadDashboard() {
-    const [stats, calls] = await Promise.all([
+    const today = State.get('currentDate');
+    const tomorrow = (() => {
+      const d = new Date(today + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    })();
+
+    const [stats, calls, tomorrowAppts] = await Promise.all([
       API.calls.stats(),
-      API.calls.list()
+      API.calls.list(),
+      API.appointments.list({ date: tomorrow })
     ]);
 
     const container = document.getElementById('dashboard-content');
@@ -31,6 +42,10 @@ const DashboardView = {
     const patientMap = {};
     patients.forEach(p => patientMap[p.id] = p.name);
 
+    // Pre-cache patients for tomorrow's appointments
+    const tomorrowPatientIds = [...new Set(tomorrowAppts.map(a => a.patientId))];
+    await Promise.all(tomorrowPatientIds.map(id => State.getPatient(id)));
+
     // Revenue metrics
     const outboundCalls = calls.filter(c => c.direction === 'outbound');
     const reviewsSent = calls.filter(c => c.reviewSent).length;
@@ -38,6 +53,9 @@ const DashboardView = {
     const revenueRecovered = calls.reduce((sum, c) => sum + (c.revenueRecovered || 0), 0);
     const lapsedReactivated = calls.filter(c => c.outcome === 'lapsed_reactivation').length;
     const followUpCalls = calls.filter(c => c.outcome === 'post_surgery_followup').length;
+    const noshowRebooked = calls.filter(c => c.outcome === 'noshow_rebooked' || c.outcome === 'cancellation_rebooked').length;
+    const noshowPending = calls.filter(c => c.outcome === 'noshow_pending').length;
+    const noshowRevenue = calls.filter(c => c.outcome === 'noshow_rebooked' || c.outcome === 'cancellation_rebooked').reduce((s, c) => s + (c.revenueRecovered || 0), 0);
 
     // Estimate missed revenue from lapsed patients not yet contacted
     const lapsedPatients = patients.filter(p => {
@@ -103,12 +121,61 @@ const DashboardView = {
             <div class="revenue-sub">Clients interested in wellness plans</div>
           </div>
         </div>
+        <div class="revenue-card revenue-noshow">
+          <div class="revenue-icon">📅</div>
+          <div>
+            <div class="revenue-value">${noshowRebooked} Rebooked</div>
+            <div class="revenue-label">No-shows & Cancellations</div>
+            <div class="revenue-sub">${noshowPending} pending · £${noshowRevenue} recovered</div>
+          </div>
+        </div>
         <div class="revenue-card revenue-lapsed">
           <div class="revenue-icon">⚠️</div>
           <div>
             <div class="revenue-value">${lapsedPatients.length} Patients</div>
             <div class="revenue-label">Overdue / Lapsed</div>
             <div class="revenue-sub">Est. £${lapsedPatients.length * 65} potential missed revenue</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice Manager Briefing -->
+      <div class="dash-panels">
+        <!-- Tomorrow's Schedule -->
+        <div class="card">
+          <h3 class="dash-section-title">📋 Tomorrow's Schedule <span class="text-small text-muted">(${new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })})</span></h3>
+          ${tomorrowAppts.length === 0
+            ? '<div class="text-muted text-center" style="padding:16px">No appointments booked</div>'
+            : `<div class="dash-tomorrow-list">
+                ${tomorrowAppts.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(a => {
+                  const staff = State.getStaffById(a.staffId);
+                  const type = State.getTypeById(a.typeId);
+                  const patient = State._data._patientCache[a.patientId];
+                  const patientName = patient ? patient.name : '...';
+                  const alerts = patient && patient.alerts && patient.alerts.length
+                    ? patient.alerts.map(al => `<span class="tag tag-alert" style="font-size:9px">${al}</span>`).join(' ')
+                    : '';
+                  const isAiBooked = a.createdBy === 'ai-receptionist';
+                  return `
+                    <div class="briefing-appt-row">
+                      <span class="briefing-time">${a.startTime}</span>
+                      <span class="briefing-patient">${patientName}</span>
+                      <span class="tag" style="background:${type ? type.colour : '#888'};color:white;font-size:10px">${type ? type.name : 'Appt'}</span>
+                      <span class="briefing-staff">${staff ? staff.name.replace('Dr ', '').replace('Nurse ', '') : ''}</span>
+                      ${isAiBooked ? '<span class="tag tag-species" style="font-size:9px">🤖 AI</span>' : ''}
+                      ${alerts}
+                    </div>
+                  `;
+                }).join('')}
+              </div>`
+          }
+        </div>
+
+        <!-- Key Info from Today -->
+        <div class="card">
+          <h3 class="dash-section-title">🔔 Key Information for Practice Manager</h3>
+          <div class="briefing-alerts">
+            ${this.generateBriefingAlerts(calls, patients, clientMap, patientMap)}
           </div>
         </div>
       </div>
@@ -122,6 +189,8 @@ const DashboardView = {
             ${this.renderOutcomeBar('Info Provided', stats.outcomes.info_provided || 0, stats.completed, 'var(--signal-teal)')}
             ${this.renderOutcomeBar('Post-Surgery Follow-up', stats.outcomes.post_surgery_followup || 0, stats.completed, 'var(--forest-teal)')}
             ${this.renderOutcomeBar('Lapsed Reactivated', stats.outcomes.lapsed_reactivation || 0, stats.completed, 'var(--success)')}
+            ${this.renderOutcomeBar('No-show Rebooked', (stats.outcomes.noshow_rebooked || 0) + (stats.outcomes.cancellation_rebooked || 0), stats.completed, '#E67E22')}
+            ${this.renderOutcomeBar('No-show Pending', stats.outcomes.noshow_pending || 0, stats.completed, '#95A5A6')}
             ${this.renderOutcomeBar('Callback Requested', stats.outcomes.callback_requested || 0, stats.completed, 'var(--warning)')}
             ${this.renderOutcomeBar('Emergency Escalated', stats.outcomes.emergency_escalated || 0, stats.completed, 'var(--danger)')}
           </div>
@@ -193,6 +262,126 @@ const DashboardView = {
         }).join('')}
       </div>
     `;
+  },
+
+  generateBriefingAlerts(calls, patients, clientMap, patientMap) {
+    const today = State.get('currentDate');
+    const todaysCalls = calls.filter(c => c.date === today);
+    const alerts = [];
+
+    // Emergency calls today
+    const emergencies = todaysCalls.filter(c => c.outcome === 'emergency_escalated');
+    emergencies.forEach(c => {
+      alerts.push({
+        icon: '🚨',
+        type: 'urgent',
+        text: `Emergency: ${patientMap[c.patientId] || 'Unknown'} (${clientMap[c.clientId] || 'Unknown'}) — ${c.resolution || 'Emergency case'}`,
+        detail: c.notes || ''
+      });
+    });
+
+    // Missed calls today
+    const missed = todaysCalls.filter(c => c.status === 'missed');
+    if (missed.length > 0) {
+      alerts.push({
+        icon: '📵',
+        type: 'warning',
+        text: `${missed.length} missed call${missed.length > 1 ? 's' : ''} today — no voicemail left`,
+        detail: 'Consider checking if these were potential emergencies'
+      });
+    }
+
+    // Callbacks pending
+    const callbacks = todaysCalls.filter(c => c.outcome === 'callback_requested');
+    callbacks.forEach(c => {
+      alerts.push({
+        icon: '📞',
+        type: 'action',
+        text: `Callback needed: ${clientMap[c.clientId] || 'Unknown'} re: ${patientMap[c.patientId] || 'patient'}`,
+        detail: c.resolution || c.notes || ''
+      });
+    });
+
+    // Anxious/concerned clients today
+    const anxious = todaysCalls.filter(c => c.sentiment === 'anxious' || c.sentiment === 'concerned');
+    anxious.forEach(c => {
+      if (!emergencies.find(e => e === c)) {
+        alerts.push({
+          icon: '😟',
+          type: 'info',
+          text: `${c.sentiment} client: ${clientMap[c.clientId] || 'Unknown'} about ${patientMap[c.patientId] || 'their pet'}`,
+          detail: c.summary || c.resolution || ''
+        });
+      }
+    });
+
+    // Reviews sent today
+    const reviews = todaysCalls.filter(c => c.reviewSent);
+    if (reviews.length > 0) {
+      alerts.push({
+        icon: '⭐',
+        type: 'positive',
+        text: `${reviews.length} Google review link${reviews.length > 1 ? 's' : ''} sent today after positive follow-up calls`,
+        detail: reviews.map(c => clientMap[c.clientId] || 'Unknown').join(', ')
+      });
+    }
+
+    // Revenue recovered today
+    const revenue = todaysCalls.filter(c => c.revenueRecovered);
+    if (revenue.length > 0) {
+      const total = revenue.reduce((s, c) => s + c.revenueRecovered, 0);
+      alerts.push({
+        icon: '💰',
+        type: 'positive',
+        text: `£${total} revenue recovered from ${revenue.length} reactivated lapsed client${revenue.length > 1 ? 's' : ''}`,
+        detail: ''
+      });
+    }
+
+    // No-shows/cancellations followed up today
+    const noshows = todaysCalls.filter(c => c.outcome === 'noshow_rebooked' || c.outcome === 'cancellation_rebooked' || c.outcome === 'noshow_pending');
+    if (noshows.length > 0) {
+      const rebooked = noshows.filter(c => c.rebookStatus === 'rebooked');
+      const pending = noshows.filter(c => c.rebookStatus === 'pending');
+      alerts.push({
+        icon: '📅',
+        type: rebooked.length > 0 ? 'positive' : 'warning',
+        text: `No-show/cancellation follow-ups: ${rebooked.length} rebooked, ${pending.length} pending`,
+        detail: noshows.map(c => {
+          const name = clientMap[c.clientId] || 'Unknown';
+          const pet = patientMap[c.patientId] || '';
+          if (c.rebookStatus === 'rebooked') return `${name} (${pet}) — rebooked ${c.rebookDate}`;
+          return `${name} (${pet}) — awaiting callback`;
+        }).join('; ')
+      });
+    }
+
+    // Care plan interest
+    const carePlan = todaysCalls.filter(c => c.carePlanInterest);
+    if (carePlan.length > 0) {
+      alerts.push({
+        icon: '🛡️',
+        type: 'action',
+        text: `${carePlan.length} client${carePlan.length > 1 ? 's' : ''} expressed interest in wellness/care plans`,
+        detail: carePlan.map(c => clientMap[c.clientId] || 'Unknown').join(', ') + ' — follow up to convert'
+      });
+    }
+
+    if (alerts.length === 0) {
+      return '<div class="text-muted text-center" style="padding:16px">No alerts for today</div>';
+    }
+
+    const typeClass = { urgent: 'briefing-urgent', warning: 'briefing-warning', action: 'briefing-action', info: 'briefing-info', positive: 'briefing-positive' };
+
+    return alerts.map(a => `
+      <div class="briefing-alert ${typeClass[a.type] || ''}">
+        <span class="briefing-alert-icon">${a.icon}</span>
+        <div class="briefing-alert-body">
+          <div class="briefing-alert-text">${a.text}</div>
+          ${a.detail ? `<div class="briefing-alert-detail">${a.detail}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
   },
 
   outcomeIcon(outcome, status, direction) {

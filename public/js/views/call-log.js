@@ -15,6 +15,7 @@ const CallLogView = {
         <button data-filter="appointment_booked">Booked</button>
         <button data-filter="post_surgery_followup">Follow-up</button>
         <button data-filter="lapsed_reactivation">Reactivated</button>
+        <button data-filter="noshow">No-shows</button>
         <button data-filter="missed">Missed</button>
       </div>
       <div class="card" style="overflow-x:auto">
@@ -57,6 +58,8 @@ const CallLogView = {
       params.direction = 'inbound';
     } else if (this.currentFilter === 'outbound') {
       params.direction = 'outbound';
+    } else if (this.currentFilter === 'noshow') {
+      // Client-side filter for noshow/cancellation outcomes
     } else if (this.currentFilter !== 'all') {
       params.outcome = this.currentFilter;
     }
@@ -68,6 +71,8 @@ const CallLogView = {
       calls = calls.filter(c => !c.direction || c.direction === 'inbound');
     } else if (this.currentFilter === 'outbound') {
       calls = calls.filter(c => c.direction === 'outbound');
+    } else if (this.currentFilter === 'noshow') {
+      calls = calls.filter(c => c.outcome === 'noshow_rebooked' || c.outcome === 'noshow_pending' || c.outcome === 'cancellation_rebooked');
     }
 
     const tbody = document.getElementById('calls-body');
@@ -143,10 +148,35 @@ const CallLogView = {
       ${call.reviewSent ? `<div class="modal-field"><label>Google Review</label><div class="value"><span class="tag tag-review">⭐ Review link sent automatically</span></div></div>` : ''}
       ${call.revenueRecovered ? `<div class="modal-field"><label>Revenue Recovered</label><div class="value"><span class="tag tag-revenue">+£${call.revenueRecovered}</span></div></div>` : ''}
       ${call.carePlanInterest ? `<div class="modal-field"><label>Care Plan</label><div class="value"><span class="tag tag-booked">Client interested in care plan</span></div></div>` : ''}
+      ${call.rebookStatus ? `
+        <div class="modal-field">
+          <label>Rebook Status</label>
+          <div class="value">
+            ${call.rebookStatus === 'rebooked'
+              ? `<span class="tag tag-noshow-rebooked">✓ Rebooked</span> ${call.rebookDate ? call.rebookDate + ' at ' + (call.rebookTime || '') : ''}`
+              : `<span class="tag tag-noshow-pending">⏳ Pending — awaiting client callback</span>`
+            }
+          </div>
+        </div>
+      ` : ''}
       ${call.summary ? `<div class="modal-field"><label>Call Summary</label><div class="value">${call.summary}</div></div>` : ''}
       <div class="modal-field"><label>Resolution</label><div class="value">${call.resolution || '—'}</div></div>
       ${call.notes ? `<div class="modal-field"><label>Notes</label><div class="value">${call.notes}</div></div>` : ''}
       <div class="modal-field"><label>Handled By</label><div class="value">${call.createdBy === 'ai-receptionist' ? 'Clinevo AI Receptionist' : call.createdBy}</div></div>
+      ${call.transcript ? `
+        <div class="modal-field">
+          <label>Call Transcript</label>
+          <div class="value">
+            <div class="call-transcript-box">
+              ${call.transcript.split('\n').map(line => {
+                const isAI = line.startsWith('AI:');
+                const isCaller = line.startsWith('Caller:') || line.startsWith('Client:');
+                return `<div class="transcript-line ${isAI ? 'transcript-ai' : ''} ${isCaller ? 'transcript-caller' : ''}">${line}</div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      ` : ''}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="Modal.close()">Close</button>
       </div>
@@ -174,7 +204,10 @@ const CallLogView = {
       callback_requested: 'Callback',
       emergency_escalated: 'Emergency',
       post_surgery_followup: 'Follow-up',
-      lapsed_reactivation: 'Reactivated'
+      lapsed_reactivation: 'Reactivated',
+      noshow_rebooked: 'No-show — Rebooked',
+      noshow_pending: 'No-show — Pending',
+      cancellation_rebooked: 'Cancelled — Rebooked'
     };
     return labels[outcome] || outcome || 'Unknown';
   },
@@ -187,7 +220,10 @@ const CallLogView = {
       callback_requested: 'tag-callback',
       emergency_escalated: 'tag-emergency',
       post_surgery_followup: 'tag-followup',
-      lapsed_reactivation: 'tag-reactivated'
+      lapsed_reactivation: 'tag-reactivated',
+      noshow_rebooked: 'tag-noshow-rebooked',
+      noshow_pending: 'tag-noshow-pending',
+      cancellation_rebooked: 'tag-noshow-rebooked'
     };
     return classes[outcome] || '';
   },

@@ -2,7 +2,17 @@ const router = require('express').Router();
 const store = require('../data/store');
 
 router.get('/', (req, res) => {
-  const { date, staffId, status } = req.query;
+  const { date, dateFrom, dateTo, staffId, status } = req.query;
+
+  if (dateFrom && dateTo) {
+    // Date range query for week view
+    let items = store.getAll('appointments', {});
+    items = items.filter(a => a.date >= dateFrom && a.date <= dateTo);
+    if (staffId) items = items.filter(a => String(a.staffId) === String(staffId));
+    if (status) items = items.filter(a => a.status === status);
+    return res.json(items);
+  }
+
   const filters = {};
   if (date) filters.date = date;
   if (staffId) filters.staffId = staffId;

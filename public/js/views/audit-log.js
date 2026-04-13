@@ -54,7 +54,7 @@ const AuditLogView = {
         channel: 'call',
         date: new Date(c.date + 'T' + c.startTime),
         icon: c.status === 'missed' ? '📵' : (c.direction === 'outbound' ? '📤' : '📞'),
-        title: c.status === 'missed' ? 'Missed Call' : (c.direction === 'outbound' ? 'Outbound Follow-up' : (c.outcome === 'emergency_escalated' ? 'Emergency Call' : 'Inbound Call')),
+        title: c.status === 'missed' ? 'Missed Call' : (c.outcome === 'noshow_rebooked' || c.outcome === 'noshow_pending' ? 'No-show Follow-up' : (c.outcome === 'cancellation_rebooked' ? 'Cancellation Follow-up' : (c.direction === 'outbound' ? 'Outbound Follow-up' : (c.outcome === 'emergency_escalated' ? 'Emergency Call' : 'Inbound Call')))),
         client: c.clientId ? (clientMap[c.clientId] || 'Unknown') : 'Unknown caller',
         patient: c.patientId ? (patientMap[c.patientId] || '') : '',
         description: (c.resolution || c.notes || 'No details') + (c.reviewSent ? ' ⭐ Review link sent' : ''),
@@ -120,7 +120,7 @@ const AuditLogView = {
       <div class="audit-date-group">
         <div class="audit-date-label">${dateLabel}</div>
         ${items.map(e => `
-          <div class="audit-entry ${e.status === 'missed' ? 'audit-missed' : ''} ${e.status === 'pending' ? 'audit-pending' : ''}">
+          <div class="audit-entry ${e.status === 'missed' ? 'audit-missed' : ''} ${e.status === 'pending' ? 'audit-pending' : ''}" ${e.type === 'call' && e.raw.transcript ? 'data-has-transcript="true"' : ''} data-event-idx="${events.indexOf(e)}">
             <div class="audit-icon">${e.icon}</div>
             <div class="audit-body">
               <div class="audit-header-row">
@@ -132,14 +132,55 @@ const AuditLogView = {
                 ${e.patient ? `<span>🐾 ${e.patient}</span>` : ''}
                 <span class="tag ${e.status === 'sent' || e.status === 'completed' ? 'tag-status' : e.status === 'pending' ? 'tag-pending' : 'tag-missed'}">${e.status}</span>
                 ${e.sentiment ? `<span class="tag ${this.sentimentClass(e.sentiment)}">${e.sentiment}</span>` : ''}
+                ${e.raw.transcript ? `<span class="tag tag-info" style="font-size:10px">📄 Transcript</span>` : ''}
               </div>
               <div class="audit-desc">${e.description}</div>
+              ${e.raw.summary ? `<div class="audit-summary">${e.raw.summary}</div>` : ''}
               <div class="audit-handler">${e.handler}</div>
             </div>
           </div>
         `).join('')}
       </div>
     `).join('');
+
+    // Click handlers for entries with transcripts
+    list.querySelectorAll('.audit-entry[data-has-transcript]').forEach(entry => {
+      entry.style.cursor = 'pointer';
+      entry.addEventListener('click', () => {
+        const idx = Number(entry.dataset.eventIdx);
+        const event = events[idx];
+        if (event && event.raw && event.raw.transcript) {
+          this.showTranscriptModal(event);
+        }
+      });
+    });
+  },
+
+  showTranscriptModal(event) {
+    const call = event.raw;
+    Modal.open(`
+      <h3>${event.icon} ${event.title}</h3>
+      <div class="modal-field"><label>Client</label><div class="value">${event.client}</div></div>
+      ${event.patient ? `<div class="modal-field"><label>Patient</label><div class="value">🐾 ${event.patient}</div></div>` : ''}
+      <div class="modal-field"><label>Date & Time</label><div class="value">${call.date} at ${call.startTime}${call.endTime ? ' – ' + call.endTime : ''}</div></div>
+      ${call.summary ? `<div class="modal-field"><label>Summary</label><div class="value">${call.summary}</div></div>` : ''}
+      <div class="modal-field"><label>Resolution</label><div class="value">${call.resolution || '—'}</div></div>
+      <div class="modal-field">
+        <label>Full Transcript</label>
+        <div class="value">
+          <div class="call-transcript-box">
+            ${call.transcript.split('\n').map(line => {
+              const isAI = line.startsWith('AI:');
+              const isCaller = line.startsWith('Caller:') || line.startsWith('Client:');
+              return `<div class="transcript-line ${isAI ? 'transcript-ai' : ''} ${isCaller ? 'transcript-caller' : ''}">${line}</div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="Modal.close()">Close</button>
+      </div>
+    `);
   },
 
   commTypeLabel(type) {

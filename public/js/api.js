@@ -35,10 +35,14 @@ const API = {
   // Convenience methods
   appointments: {
     list: (params) => API.get('/appointments', params),
+    listRange: (dateFrom, dateTo) => API.get('/appointments', { dateFrom, dateTo }),
     get: (id) => API.get(`/appointments/${id}`),
     create: (data) => API.post('/appointments', data),
     update: (id, data) => API.put(`/appointments/${id}`, data),
     cancel: (id) => API.del(`/appointments/${id}`)
+  },
+  search: {
+    global: (q) => API.get('/search', { q })
   },
   clients: {
     list: (params) => API.get('/clients', params),
