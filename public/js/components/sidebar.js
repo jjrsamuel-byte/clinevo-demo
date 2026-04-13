@@ -2,13 +2,16 @@ function renderSidebar() {
   const el = document.getElementById('sidebar');
   const currentView = State.get('currentView');
 
-  const links = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { id: 'callLog', icon: '☎️', label: 'Call Log' },
+  const pmsLinks = [
     { id: 'calendar', icon: '📅', label: 'Calendar' },
     { id: 'clients', icon: '👥', label: 'Clients' },
     { id: 'patients', icon: '🐾', label: 'Patients' },
-    { id: 'staff', icon: '🩺', label: 'Staff' },
+    { id: 'staff', icon: '🩺', label: 'Staff' }
+  ];
+
+  const clinevoLinks = [
+    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
+    { id: 'callLog', icon: '☎️', label: 'Call Log' },
     { id: 'comms', icon: '💬', label: 'Communications' },
     { id: 'auditLog', icon: '📋', label: 'Audit Log' }
   ];
@@ -35,7 +38,27 @@ function renderSidebar() {
       Oakwood Veterinary Practice
     </div>
     <nav class="sidebar-nav">
-      ${links.map(l => `
+      <div class="sidebar-section-label">
+        <span class="sidebar-section-icon">🏥</span>
+        Practice Management
+      </div>
+      ${pmsLinks.map(l => `
+        <a href="#" data-view="${l.id}" class="${currentView === l.id ? 'active' : ''}">
+          <span class="icon">${l.icon}</span>
+          ${l.label}
+        </a>
+      `).join('')}
+      <div class="sidebar-section-divider"></div>
+      <div class="sidebar-section-label">
+        <span class="sidebar-section-icon sidebar-section-icon-clinevo">
+          <svg width="14" height="14" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.63,14.77 A9,9 0 1 1 17.63,5.23" fill="none" stroke="#534AB7" stroke-width="2.2"/>
+            <path d="M14.75,12.97 A5.6,5.6 0 1 1 14.75,7.03" fill="none" stroke="#45C4BC" stroke-width="1.5"/>
+          </svg>
+        </span>
+        Clinevo AI
+      </div>
+      ${clinevoLinks.map(l => `
         <a href="#" data-view="${l.id}" class="${currentView === l.id ? 'active' : ''}">
           <span class="icon">${l.icon}</span>
           ${l.label}
