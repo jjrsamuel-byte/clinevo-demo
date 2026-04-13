@@ -42,15 +42,17 @@ const PatientsView = {
     if (!grid) return;
 
     grid.innerHTML = patients.map(p => {
-      const age = this.calcAge(p.dateOfBirth);
+      const age = p.dateOfBirth ? this.calcAge(p.dateOfBirth) : 'Unknown age';
       return `
         <div class="patient-card" data-id="${p.id}">
+          ${p.createdBy === 'ai-receptionist' ? '<span class="patient-new-badge">NEW</span>' : ''}
           <div class="species-icon">${State.getSpeciesIcon(p.species)}</div>
           <div class="patient-name">${p.name}</div>
-          <div class="patient-breed">${p.breed} · ${p.sex}</div>
-          <div class="text-small text-muted mb-8">${age} · ${p.weight}kg</div>
+          <div class="patient-breed">${p.breed} · ${p.sex || 'Unknown'}</div>
+          <div class="text-small text-muted mb-8">${age}${p.weight ? ' · ' + p.weight + 'kg' : ''}</div>
           <div class="patient-meta">
             <span class="tag tag-species">${p.species}</span>
+            ${p.createdBy === 'ai-receptionist' ? '<span class="tag tag-new-client">AI Registered</span>' : ''}
             ${(p.alerts || []).map(a => `<span class="tag tag-alert">${a}</span>`).join('')}
           </div>
         </div>
@@ -163,3 +165,8 @@ const PatientsView = {
     `);
   }
 };
+
+// SSE: refresh on new patient
+SSE.on('patients:created', () => {
+  if (State.get('currentView') === 'patients') PatientsView.loadPatients();
+});

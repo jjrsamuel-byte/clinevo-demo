@@ -46,6 +46,10 @@ const DashboardView = {
     const tomorrowPatientIds = [...new Set(tomorrowAppts.map(a => a.patientId))];
     await Promise.all(tomorrowPatientIds.map(id => State.getPatient(id)));
 
+    // New clients created by AI
+    const newClients = clients.filter(c => c.createdBy === 'ai-receptionist');
+    const newPatients = patients.filter(p => p.createdBy === 'ai-receptionist');
+
     // Revenue metrics
     const outboundCalls = calls.filter(c => c.direction === 'outbound');
     const reviewsSent = calls.filter(c => c.reviewSent).length;
@@ -89,6 +93,10 @@ const DashboardView = {
           <div class="dash-stat-value">${reviewsSent}</div>
           <div class="dash-stat-label">Reviews Sent</div>
         </div>
+        <div class="dash-stat-card dash-stat-green">
+          <div class="dash-stat-value">${newClients.length}</div>
+          <div class="dash-stat-label">New Clients</div>
+        </div>
         <div class="dash-stat-card dash-stat-red">
           <div class="dash-stat-value">${stats.missed}</div>
           <div class="dash-stat-label">Missed</div>
@@ -127,6 +135,14 @@ const DashboardView = {
             <div class="revenue-value">${noshowRebooked} Rebooked</div>
             <div class="revenue-label">No-shows & Cancellations</div>
             <div class="revenue-sub">${noshowPending} pending · £${noshowRevenue} recovered</div>
+          </div>
+        </div>
+        <div class="revenue-card revenue-new-clients">
+          <div class="revenue-icon">👤</div>
+          <div>
+            <div class="revenue-value">${newClients.length} Client${newClients.length !== 1 ? 's' : ''}</div>
+            <div class="revenue-label">New Registrations by AI</div>
+            <div class="revenue-sub">${newPatients.length} patient${newPatients.length !== 1 ? 's' : ''} registered · auto-created during calls</div>
           </div>
         </div>
         <div class="revenue-card revenue-lapsed">
@@ -175,7 +191,7 @@ const DashboardView = {
         <div class="card">
           <h3 class="dash-section-title">🔔 Key Information for Practice Manager</h3>
           <div class="briefing-alerts">
-            ${this.generateBriefingAlerts(calls, patients, clientMap, patientMap)}
+            ${this.generateBriefingAlerts(calls, patients, clients, clientMap, patientMap)}
           </div>
         </div>
       </div>
@@ -264,7 +280,7 @@ const DashboardView = {
     `;
   },
 
-  generateBriefingAlerts(calls, patients, clientMap, patientMap) {
+  generateBriefingAlerts(calls, patients, clients, clientMap, patientMap) {
     const today = State.get('currentDate');
     const todaysCalls = calls.filter(c => c.date === today);
     const alerts = [];
@@ -367,6 +383,17 @@ const DashboardView = {
       });
     }
 
+    // New clients registered by AI today
+    const todaysNewClients = clients.filter(c => c.createdBy === 'ai-receptionist' && c.createdAt && c.createdAt.startsWith(today));
+    if (todaysNewClients.length > 0) {
+      alerts.push({
+        icon: '👤',
+        type: 'positive',
+        text: `${todaysNewClients.length} new client${todaysNewClients.length > 1 ? 's' : ''} registered by AI during calls`,
+        detail: todaysNewClients.map(c => `${c.firstName} ${c.lastName}`).join(', ')
+      });
+    }
+
     if (alerts.length === 0) {
       return '<div class="text-muted text-center" style="padding:16px">No alerts for today</div>';
     }
@@ -399,7 +426,13 @@ const DashboardView = {
   }
 };
 
-// SSE: refresh dashboard on new calls
+// SSE: refresh dashboard on new calls or new clients
 SSE.on('calls:created', () => {
+  if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
+});
+SSE.on('clients:created', () => {
+  if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
+});
+SSE.on('patients:created', () => {
   if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
 });

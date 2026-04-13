@@ -1278,6 +1278,42 @@ h1, h2, h3, h4 {
   color: var(--danger);
 }
 
+.tag-new-client {
+  background: linear-gradient(135deg, var(--clinevo-purple), var(--signal-teal));
+  color: white;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  animation: newClientPulse 2s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+@keyframes newClientPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.patient-new-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, var(--clinevo-purple), var(--signal-teal));
+  color: white;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  animation: newClientPulse 2s ease-in-out infinite;
+}
+
+.patient-card {
+  position: relative;
+}
+
 .tag-species {
   background: rgba(83, 74, 183, 0.1);
   color: var(--clinevo-purple);
@@ -1514,6 +1550,7 @@ h1, h2, h3, h4 {
 .dash-stat-teal .dash-stat-value { color: var(--signal-teal); }
 .dash-stat-red .dash-stat-value { color: var(--danger); }
 .dash-stat-purple .dash-stat-value { color: var(--clinevo-purple); }
+.dash-stat-green .dash-stat-value { color: var(--success); }
 
 .dash-panels {
   display: grid;
@@ -1809,6 +1846,10 @@ h1, h2, h3, h4 {
 
 .revenue-card.revenue-noshow {
   border-left: 3px solid #E67E22;
+}
+
+.revenue-card.revenue-new-clients {
+  border-left: 3px solid var(--success);
 }
 
 .revenue-card.revenue-lapsed {

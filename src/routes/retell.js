@@ -89,11 +89,65 @@ router.post('/webhook', (req, res) => {
               }))
             };
           } else {
-            result = { found: false, message: `No client found matching "${query}"` };
+            result = { found: false, message: `No client found matching "${query}". You can register them as a new client using the register_new_client tool.` };
           }
 
           // Broadcast action to SSE
           broadcastAction(store, `Searched PMS for client: "${query}"`, `GET /api/v1/clients?search=${query}`);
+          break;
+        }
+
+        case 'register_new_client': {
+          const p = tool_parameters;
+          // Create the client
+          const newClient = store.create('clients', {
+            title: p.title || '',
+            firstName: p.first_name || p.firstName || '',
+            lastName: p.last_name || p.lastName || '',
+            email: p.email || '',
+            phone: p.phone || '',
+            address: p.address || '',
+            postcode: p.postcode || '',
+            notes: p.notes || '',
+            createdBy: 'ai-receptionist'
+          });
+
+          // Create the patient if pet details provided
+          let newPatient = null;
+          if (p.pet_name || p.petName) {
+            newPatient = store.create('patients', {
+              clientId: newClient.id,
+              name: p.pet_name || p.petName || '',
+              species: p.pet_species || p.petSpecies || 'Dog',
+              breed: p.pet_breed || p.petBreed || 'Unknown',
+              colour: p.pet_colour || p.petColour || '',
+              sex: p.pet_sex || p.petSex || '',
+              dateOfBirth: p.pet_dob || p.petDob || '',
+              weight: p.pet_weight || p.petWeight || 0,
+              microchip: '',
+              notes: '',
+              alerts: [],
+              vaccinationDue: null,
+              createdBy: 'ai-receptionist'
+            });
+          }
+
+          result = {
+            success: true,
+            client: {
+              id: newClient.id,
+              name: `${newClient.firstName} ${newClient.lastName}`.trim(),
+              phone: newClient.phone
+            },
+            patient: newPatient ? {
+              id: newPatient.id,
+              name: newPatient.name,
+              species: newPatient.species,
+              breed: newPatient.breed
+            } : null,
+            message: `New client ${newClient.firstName} ${newClient.lastName} registered${newPatient ? ` with patient ${newPatient.name}` : ''}`
+          };
+          broadcastAction(store, `Registered new client: ${newClient.firstName} ${newClient.lastName}${newPatient ? ` with ${newPatient.name}` : ''}`, 'POST /api/v1/clients');
           break;
         }
 

@@ -41,7 +41,10 @@ const ClientsView = {
 
     tbody.innerHTML = clients.map(c => `
       <tr data-id="${c.id}">
-        <td><strong>${c.title || ''} ${c.firstName} ${c.lastName}</strong></td>
+        <td>
+          <strong>${c.title || ''} ${c.firstName} ${c.lastName}</strong>
+          ${c.createdBy === 'ai-receptionist' ? '<span class="tag tag-new-client">NEW</span>' : ''}
+        </td>
         <td>${c.phone}</td>
         <td>${c.email}</td>
         <td>${c.postcode}</td>
@@ -59,7 +62,7 @@ const ClientsView = {
     const patients = client.patients || [];
 
     Modal.open(`
-      <h3>${client.title || ''} ${client.firstName} ${client.lastName}</h3>
+      <h3>${client.title || ''} ${client.firstName} ${client.lastName} ${client.createdBy === 'ai-receptionist' ? '<span class="tag tag-new-client">NEW — AI Registered</span>' : ''}</h3>
       <div class="modal-field">
         <label>Phone</label>
         <div class="value">${client.phone}</div>
@@ -96,3 +99,8 @@ const ClientsView = {
     `);
   }
 };
+
+// SSE: refresh on new client
+SSE.on('clients:created', () => {
+  if (State.get('currentView') === 'clients') ClientsView.loadClients();
+});
