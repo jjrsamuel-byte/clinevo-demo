@@ -364,6 +364,7 @@ const AIPanel = {
     await API.ai.stopScenario();
     this._lastTranscript = [];
     this._transcriptMessages = [];
+    ChatTranscript._lastRendered = [];
     // Clear Retell event listeners
     RetellCall._listeners = {};
     State.set('aiRunning', false);
