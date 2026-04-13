@@ -4,6 +4,8 @@ function renderSidebar() {
 
   const links = [
     { id: 'calendar', icon: '📅', label: 'Calendar' },
+    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
+    { id: 'callLog', icon: '☎️', label: 'Call Log' },
     { id: 'clients', icon: '👥', label: 'Clients' },
     { id: 'patients', icon: '🐾', label: 'Patients' },
     { id: 'staff', icon: '🩺', label: 'Staff' },

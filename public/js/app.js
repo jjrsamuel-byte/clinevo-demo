@@ -15,6 +15,8 @@
 
   // View routing
   const views = {
+    dashboard: DashboardView,
+    callLog: CallLogView,
     calendar: CalendarView,
     clients: ClientsView,
     patients: PatientsView,

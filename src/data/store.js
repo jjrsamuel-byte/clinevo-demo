@@ -12,7 +12,7 @@ class Store extends EventEmitter {
 
   load() {
     const seedDir = __dirname;
-    const collections = ['clients', 'patients', 'staff', 'appointments', 'appointment-types', 'comms'];
+    const collections = ['clients', 'patients', 'staff', 'appointments', 'appointment-types', 'comms', 'calls'];
     for (const col of collections) {
       const file = path.join(seedDir, `seed-${col}.json`);
       const key = col.replace('-', '_');

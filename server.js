@@ -17,6 +17,7 @@ app.use('/api/v1/comms', require('./src/routes/comms'));
 app.use('/api/v1/events', require('./src/routes/events'));
 app.use('/api/v1/ai', require('./src/routes/ai'));
 app.use('/api/v1/retell', require('./src/routes/retell'));
+app.use('/api/v1/calls', require('./src/routes/calls'));
 
 // Reset endpoint
 const store = require('./src/data/store');

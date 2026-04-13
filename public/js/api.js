@@ -68,6 +68,11 @@ const API = {
     chat: (message, history) => API.post('/ai/chat', { message, history }),
     mode: () => API.get('/ai/mode')
   },
+  calls: {
+    list: (params) => API.get('/calls', params),
+    get: (id) => API.get(`/calls/${id}`),
+    stats: () => API.get('/calls/stats')
+  },
   retell: {
     status: () => API.get('/retell/status'),
     createWebCall: () => API.post('/retell/web-call')
