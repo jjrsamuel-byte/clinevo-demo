@@ -1,0 +1,9 @@
+[
+  { "id": 1, "name": "Routine Consultation", "duration": 20, "colour": "#45C4BC", "category": "routine", "requiresVet": true },
+  { "id": 2, "name": "Vaccination", "duration": 15, "colour": "#2ECC71", "category": "routine", "requiresVet": true },
+  { "id": 3, "name": "Nurse Check", "duration": 15, "colour": "#95A5A6", "category": "routine", "requiresVet": false },
+  { "id": 4, "name": "Dental", "duration": 45, "colour": "#3498DB", "category": "procedure", "requiresVet": true },
+  { "id": 5, "name": "Emergency", "duration": 30, "colour": "#E74C3C", "category": "emergency", "requiresVet": true },
+  { "id": 6, "name": "Surgery", "duration": 60, "colour": "#534AB7", "category": "procedure", "requiresVet": true },
+  { "id": 7, "name": "Behaviour Consult", "duration": 40, "colour": "#E67E22", "category": "specialist", "requiresVet": true }
+]

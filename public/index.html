@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oakwood Veterinary Practice — PMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
+</head>
+<body>
+  <div class="pms-shell" id="app">
+    <!-- Sidebar -->
+    <aside class="pms-sidebar" id="sidebar"></aside>
+
+    <!-- Top bar -->
+    <header class="pms-topbar" id="topbar"></header>
+
+    <!-- Main content area -->
+    <main class="pms-main" id="main"></main>
+
+    <!-- AI Receptionist drawer -->
+    <aside class="pms-ai-drawer" id="ai-drawer"></aside>
+  </div>
+
+  <!-- Modal overlay -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@3/bundle/index.js"></script>
+  <script src="/js/retell-call.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/state.js"></script>
+  <script src="/js/sse.js"></script>
+  <script src="/js/components/sidebar.js"></script>
+  <script src="/js/components/topbar.js"></script>
+  <script src="/js/components/modal.js"></script>
+  <script src="/js/components/calendar-grid.js"></script>
+  <script src="/js/components/chat-transcript.js"></script>
+  <script src="/js/components/notification-card.js"></script>
+  <script src="/js/views/calendar.js"></script>
+  <script src="/js/views/clients.js"></script>
+  <script src="/js/views/patients.js"></script>
+  <script src="/js/views/staff.js"></script>
+  <script src="/js/views/comms.js"></script>
+  <script src="/js/views/ai-panel.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

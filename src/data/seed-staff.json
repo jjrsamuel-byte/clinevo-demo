@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "name": "Dr Emily Hargreaves",
+    "role": "Senior Veterinary Surgeon",
+    "specialisms": ["Feline Medicine", "Internal Medicine"],
+    "colour": "#534AB7",
+    "available": true,
+    "workingDays": [1, 2, 3, 4, 5],
+    "startTime": "08:00",
+    "endTime": "18:00"
+  },
+  {
+    "id": 2,
+    "name": "Dr Aiden Chen",
+    "role": "Veterinary Surgeon",
+    "specialisms": ["Surgery", "Emergency Medicine"],
+    "colour": "#E85D4A",
+    "available": true,
+    "workingDays": [1, 2, 3, 4, 5],
+    "startTime": "08:00",
+    "endTime": "18:00"
+  },
+  {
+    "id": 3,
+    "name": "Dr Priya Sharma",
+    "role": "Veterinary Surgeon",
+    "specialisms": ["Exotics", "Dentistry"],
+    "colour": "#0F6E56",
+    "available": true,
+    "workingDays": [1, 2, 4, 5],
+    "startTime": "09:00",
+    "endTime": "17:00"
+  },
+  {
+    "id": 4,
+    "name": "Nurse Sophie Calloway",
+    "role": "Registered Veterinary Nurse",
+    "specialisms": ["Post-operative Care", "Blood Sampling"],
+    "colour": "#45C4BC",
+    "available": true,
+    "workingDays": [1, 2, 3, 4, 5],
+    "startTime": "08:00",
+    "endTime": "18:00"
+  },
+  {
+    "id": 5,
+    "name": "Nurse Tom Bradley",
+    "role": "Registered Veterinary Nurse",
+    "specialisms": ["Anaesthesia", "Wound Management"],
+    "colour": "#7B68EE",
+    "available": true,
+    "workingDays": [1, 2, 3, 5],
+    "startTime": "08:00",
+    "endTime": "17:00"
+  },
+  {
+    "id": 6,
+    "name": "Rachel Okonkwo",
+    "role": "Head Receptionist",
+    "specialisms": [],
+    "colour": "#888",
+    "available": true,
+    "workingDays": [1, 2, 3, 4, 5],
+    "startTime": "08:00",
+    "endTime": "18:00"
+  }
+]
