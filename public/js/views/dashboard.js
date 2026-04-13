@@ -459,7 +459,6 @@ const DashboardView = {
       const barPct = maxCount > 0 ? Math.round((t.count / maxCount) * 100) : 0;
       return `
         <div class="enquiry-type-row">
-          <div class="enquiry-type-icon">${t.icon}</div>
           <div class="enquiry-type-info">
             <div class="enquiry-type-label">${t.label}</div>
             <div class="enquiry-type-bar-wrap">
