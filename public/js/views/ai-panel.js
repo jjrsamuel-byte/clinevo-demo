@@ -3,7 +3,6 @@ const AIPanel = {
   retellAvailable: false,
   _lastTranscript: [],
   _transcriptMessages: [],
-  _transcriptPollInterval: null,
 
   async render() {
     const drawer = document.getElementById('ai-drawer');
@@ -108,7 +107,6 @@ const AIPanel = {
     // Event listeners
     document.getElementById('ai-close').addEventListener('click', () => {
       if (RetellCall.active) RetellCall.stop();
-      this._stopTranscriptPolling();
       State.set('aiDrawerOpen', false);
     });
 
@@ -190,13 +188,11 @@ const AIPanel = {
           const label = document.querySelector('.voice-label');
           if (label) label.textContent = 'Connected — speak now';
 
-          // Start polling Retell API for complete transcript every 3s
-          this._startTranscriptPolling(RetellCall.callId);
+          // SDK streaming will handle live transcript display
         });
 
         RetellCall.on('ended', () => {
           State.set('aiRunning', false);
-          this._stopTranscriptPolling();
 
           // Final fetch of complete transcript from Retell API
           this._fetchCompleteTranscript(RetellCall.callId).then(() => {
@@ -213,6 +209,10 @@ const AIPanel = {
           if (label) label.textContent = isTalking ? 'AI Receptionist speaking...' : 'Listening...';
           const bars = document.querySelector('.voice-bars');
           if (bars) bars.classList.toggle('active', isTalking);
+        });
+
+        RetellCall.on('transcript', (transcript) => {
+          this._updateLiveTranscript(transcript);
         });
 
         RetellCall.on('error', (error) => {
@@ -246,18 +246,34 @@ const AIPanel = {
     }
   },
 
-  _startTranscriptPolling(callId) {
-    if (!callId) return;
-    this._stopTranscriptPolling();
-    this._transcriptPollInterval = setInterval(() => {
-      this._fetchCompleteTranscript(callId, true);
-    }, 3000);
-  },
+  _updateLiveTranscript(transcript) {
+    // Retell SDK sends the full transcript array on every update.
+    // Each utterance grows progressively as speech is recognized.
+    // We rebuild from the full array each time — the diff-based
+    // ChatTranscript renderer ensures no blink.
+    if (!Array.isArray(transcript)) return;
 
-  _stopTranscriptPolling() {
-    if (this._transcriptPollInterval) {
-      clearInterval(this._transcriptPollInterval);
-      this._transcriptPollInterval = null;
+    const transcriptMsgs = [];
+    for (const utt of transcript) {
+      if (!utt) continue;
+      const role = (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller';
+      const text = utt.content || utt.text || utt.message || '';
+      if (!text || !text.trim()) continue;
+      transcriptMsgs.push({ role, text });
+    }
+
+    if (transcriptMsgs.length === 0) return;
+
+    this._transcriptMessages = transcriptMsgs;
+
+    // Rebuild: system messages + live transcript
+    const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
+    const allMsgs = [...systemMsgs, ...transcriptMsgs];
+    State.set('aiMessages', allMsgs);
+
+    const chatArea = document.getElementById('ai-chat-area');
+    if (chatArea) {
+      ChatTranscript.render(allMsgs, chatArea);
     }
   },
 
@@ -360,7 +376,6 @@ const AIPanel = {
 
   async resetDemo() {
     if (RetellCall.active) await RetellCall.stop();
-    this._stopTranscriptPolling();
     await API.ai.stopScenario();
     this._lastTranscript = [];
     this._transcriptMessages = [];
