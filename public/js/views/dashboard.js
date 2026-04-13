@@ -234,9 +234,17 @@ const DashboardView = {
         </div>
       </div>
 
+      <!-- Call Volume by Enquiry Type -->
+      <div class="card mt-16">
+        <h3 class="dash-section-title">Call Volume by Enquiry Type</h3>
+        <div class="dash-enquiry-grid">
+          ${this.renderEnquiryTypeBreakdown(calls)}
+        </div>
+      </div>
+
       <!-- Call Volume by Date -->
       <div class="card mt-16">
-        <h3 class="dash-section-title">Call Volume</h3>
+        <h3 class="dash-section-title">Call Volume by Date</h3>
         <div class="dash-volume-chart">
           ${this.renderVolumeChart(stats.byDate)}
         </div>
@@ -409,6 +417,62 @@ const DashboardView = {
         </div>
       </div>
     `).join('');
+  },
+
+  renderEnquiryTypeBreakdown(calls) {
+    const types = [
+      { key: 'appointment_booked', label: 'Appointment Booking', icon: '📅', colour: 'var(--clinevo-purple)' },
+      { key: 'emergency_escalated', label: 'Emergency', icon: '🚨', colour: 'var(--danger)' },
+      { key: 'info_provided', label: 'General Enquiry', icon: 'ℹ️', colour: 'var(--signal-teal)' },
+      { key: 'callback_requested', label: 'Callback Request', icon: '📞', colour: 'var(--warning)' },
+      { key: 'post_surgery_followup', label: 'Post-Surgery Follow-up', icon: '🩺', colour: 'var(--forest-teal)' },
+      { key: 'lapsed_reactivation', label: 'Lapsed Client Reactivation', icon: '🔄', colour: 'var(--success)' },
+      { key: 'noshow_rebooked', label: 'No-show Rebooked', icon: '📋', colour: '#E67E22' },
+      { key: 'noshow_pending', label: 'No-show Pending', icon: '⏳', colour: '#95A5A6' },
+      { key: 'cancellation_rebooked', label: 'Cancellation Rebooked', icon: '↩️', colour: '#8E44AD' }
+    ];
+
+    const completedCalls = calls.filter(c => c.status === 'completed');
+    const missedCalls = calls.filter(c => c.status === 'missed');
+    const total = calls.length;
+
+    // Count each type
+    const typeCounts = types.map(t => {
+      const count = completedCalls.filter(c => c.outcome === t.key).length;
+      return { ...t, count };
+    }).filter(t => t.count > 0);
+
+    // Add missed calls
+    if (missedCalls.length > 0) {
+      typeCounts.push({ key: 'missed', label: 'Missed Calls', icon: '📵', colour: 'var(--danger)', count: missedCalls.length });
+    }
+
+    // Sort by count descending
+    typeCounts.sort((a, b) => b.count - a.count);
+
+    if (typeCounts.length === 0) return '<div class="text-muted text-center">No call data</div>';
+
+    const maxCount = Math.max(...typeCounts.map(t => t.count));
+
+    return typeCounts.map(t => {
+      const pct = total > 0 ? Math.round((t.count / total) * 100) : 0;
+      const barPct = maxCount > 0 ? Math.round((t.count / maxCount) * 100) : 0;
+      return `
+        <div class="enquiry-type-row">
+          <div class="enquiry-type-icon">${t.icon}</div>
+          <div class="enquiry-type-info">
+            <div class="enquiry-type-label">${t.label}</div>
+            <div class="enquiry-type-bar-wrap">
+              <div class="enquiry-type-bar" style="width:${barPct}%;background:${t.colour}"></div>
+            </div>
+          </div>
+          <div class="enquiry-type-count">
+            <span class="enquiry-type-num">${t.count}</span>
+            <span class="enquiry-type-pct">${pct}%</span>
+          </div>
+        </div>
+      `;
+    }).join('');
   },
 
   outcomeIcon(outcome, status, direction) {

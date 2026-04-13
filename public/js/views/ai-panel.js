@@ -241,14 +241,17 @@ const AIPanel = {
 
   _updateTranscriptFromRetell(transcript) {
     // Convert Retell transcript array to our message format
-    // Only add new utterances
+    // Handle various SDK versions: content/text field, role naming
+    if (!Array.isArray(transcript)) return;
+
     const newMessages = [];
     for (let i = this._lastTranscript.length; i < transcript.length; i++) {
       const utt = transcript[i];
-      newMessages.push({
-        role: utt.role === 'agent' ? 'ai' : 'caller',
-        text: utt.content
-      });
+      if (!utt) continue;
+      const role = (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller';
+      const text = utt.content || utt.text || utt.message || '';
+      if (!text) continue;
+      newMessages.push({ role, text });
     }
     this._lastTranscript = [...transcript];
 
@@ -257,7 +260,10 @@ const AIPanel = {
       msgs.push(...newMessages);
       State.set('aiMessages', msgs);
       const chatArea = document.getElementById('ai-chat-area');
-      if (chatArea) ChatTranscript.render(msgs, chatArea);
+      if (chatArea) {
+        ChatTranscript.render(msgs, chatArea);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }
     }
   },
 

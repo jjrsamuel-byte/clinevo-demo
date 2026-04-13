@@ -1643,6 +1643,70 @@ h1, h2, h3, h4 {
 }
 
 /* Volume chart */
+/* Enquiry Type Breakdown */
+.dash-enquiry-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.enquiry-type-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enquiry-type-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.enquiry-type-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.enquiry-type-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.enquiry-type-bar-wrap {
+  height: 8px;
+  background: var(--bg-panel);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.enquiry-type-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  min-width: 4px;
+}
+
+.enquiry-type-count {
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.enquiry-type-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.enquiry-type-pct {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
 .dash-bar-chart {
   display: flex;
   align-items: flex-end;
