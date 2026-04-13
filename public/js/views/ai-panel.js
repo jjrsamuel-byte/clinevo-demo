@@ -3,6 +3,7 @@ const AIPanel = {
   retellAvailable: false,
   _lastTranscript: [],
   _transcriptMessages: [],
+  _transcriptPollInterval: null,
 
   async render() {
     const drawer = document.getElementById('ai-drawer');
@@ -107,6 +108,7 @@ const AIPanel = {
     // Event listeners
     document.getElementById('ai-close').addEventListener('click', () => {
       if (RetellCall.active) RetellCall.stop();
+      this._stopTranscriptPolling();
       State.set('aiDrawerOpen', false);
     });
 
@@ -187,12 +189,16 @@ const AIPanel = {
           if (chatArea) ChatTranscript.render(msgs, chatArea);
           const label = document.querySelector('.voice-label');
           if (label) label.textContent = 'Connected — speak now';
+
+          // Start polling Retell API for complete transcript every 3s
+          this._startTranscriptPolling(RetellCall.callId);
         });
 
         RetellCall.on('ended', () => {
           State.set('aiRunning', false);
+          this._stopTranscriptPolling();
 
-          // Fetch complete transcript from Retell API (the SDK only gives partials)
+          // Final fetch of complete transcript from Retell API
           this._fetchCompleteTranscript(RetellCall.callId).then(() => {
             const msgs = State.get('aiMessages');
             msgs.push({ role: 'system', text: 'Call ended' });
@@ -207,10 +213,6 @@ const AIPanel = {
           if (label) label.textContent = isTalking ? 'AI Receptionist speaking...' : 'Listening...';
           const bars = document.querySelector('.voice-bars');
           if (bars) bars.classList.toggle('active', isTalking);
-        });
-
-        RetellCall.on('transcript', (transcript) => {
-          this._updateTranscriptFromRetell(transcript);
         });
 
         RetellCall.on('error', (error) => {
@@ -244,91 +246,73 @@ const AIPanel = {
     }
   },
 
-  _updateTranscriptFromRetell(transcript) {
-    // Retell sends the FULL transcript array on every update.
-    // Utterances grow progressively ("Hi" → "Hi, I'd like to" → "Hi, I'd like to book...").
-    // We rebuild transcript messages from scratch each time.
-    if (!Array.isArray(transcript)) return;
+  _startTranscriptPolling(callId) {
+    if (!callId) return;
+    this._stopTranscriptPolling();
+    this._transcriptPollInterval = setInterval(() => {
+      this._fetchCompleteTranscript(callId, true);
+    }, 3000);
+  },
 
-    // Convert full Retell transcript to our message format
-    const transcriptMsgs = [];
-    for (const utt of transcript) {
-      if (!utt) continue;
-      const role = (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller';
-      const text = utt.content || utt.text || utt.message || '';
-      if (!text || !text.trim()) continue;
-      transcriptMsgs.push({ role, text });
-    }
-
-    // Store the latest transcript messages
-    this._transcriptMessages = transcriptMsgs;
-
-    // Rebuild full message list: system messages + transcript messages
-    const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
-    const allMsgs = [...systemMsgs, ...transcriptMsgs];
-    State.set('aiMessages', allMsgs);
-
-    const chatArea = document.getElementById('ai-chat-area');
-    if (chatArea) {
-      ChatTranscript.render(allMsgs, chatArea);
-      chatArea.scrollTop = chatArea.scrollHeight;
+  _stopTranscriptPolling() {
+    if (this._transcriptPollInterval) {
+      clearInterval(this._transcriptPollInterval);
+      this._transcriptPollInterval = null;
     }
   },
 
-  async _fetchCompleteTranscript(callId) {
+  async _fetchCompleteTranscript(callId, isLivePoll = false) {
     if (!callId) return;
 
-    // Retell needs a moment to process the transcript after call ends
-    await new Promise(r => setTimeout(r, 2000));
+    // When fetching after call ends, give Retell a moment to finalize
+    if (!isLivePoll) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
 
     try {
       const res = await fetch(`/api/v1/retell/call/${callId}`);
+      if (!res.ok) return;
       const data = await res.json();
 
+      let transcriptMsgs = [];
+
       if (data.transcriptObject && data.transcriptObject.length > 0) {
-        // Use the structured transcript object from Retell
-        const transcriptMsgs = data.transcriptObject.map(utt => ({
+        transcriptMsgs = data.transcriptObject.map(utt => ({
           role: (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller',
           text: utt.content || utt.text || ''
         })).filter(m => m.text.trim());
-
-        this._transcriptMessages = transcriptMsgs;
-
-        // Rebuild display with complete transcript
-        const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
-        const allMsgs = [...systemMsgs, ...transcriptMsgs];
-        State.set('aiMessages', allMsgs);
-
-        const chatArea = document.getElementById('ai-chat-area');
-        if (chatArea) {
-          ChatTranscript.render(allMsgs, chatArea);
-          chatArea.scrollTop = chatArea.scrollHeight;
-        }
       } else if (data.transcript) {
-        // Fall back to plain text transcript
         const lines = data.transcript.split('\n').filter(l => l.trim());
-        const transcriptMsgs = lines.map(line => {
+        transcriptMsgs = lines.map(line => {
           const isAgent = line.startsWith('Agent:') || line.startsWith('AI:');
           const text = line.replace(/^(Agent|AI|User|Caller|Customer):\s*/i, '');
           return { role: isAgent ? 'ai' : 'caller', text };
         }).filter(m => m.text.trim());
+      }
 
-        if (transcriptMsgs.length > 0) {
-          this._transcriptMessages = transcriptMsgs;
-          const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
-          const allMsgs = [...systemMsgs, ...transcriptMsgs];
-          State.set('aiMessages', allMsgs);
+      // Only update if we got more content than before
+      if (transcriptMsgs.length === 0) return;
+      if (isLivePoll && transcriptMsgs.length <= this._transcriptMessages.length) {
+        // Check if content actually changed
+        const newText = transcriptMsgs.map(m => m.text).join('');
+        const oldText = this._transcriptMessages.map(m => m.text).join('');
+        if (newText === oldText) return;
+      }
 
-          const chatArea = document.getElementById('ai-chat-area');
-          if (chatArea) {
-            ChatTranscript.render(allMsgs, chatArea);
-            chatArea.scrollTop = chatArea.scrollHeight;
-          }
-        }
+      this._transcriptMessages = transcriptMsgs;
+
+      // Rebuild display: system messages + complete transcript
+      const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
+      const allMsgs = [...systemMsgs, ...transcriptMsgs];
+      State.set('aiMessages', allMsgs);
+
+      const chatArea = document.getElementById('ai-chat-area');
+      if (chatArea) {
+        ChatTranscript.render(allMsgs, chatArea);
+        chatArea.scrollTop = chatArea.scrollHeight;
       }
     } catch (err) {
-      console.error('Failed to fetch complete transcript:', err);
-      // Fall through — will use whatever partial transcript we have
+      if (!isLivePoll) console.error('Failed to fetch complete transcript:', err);
     }
   },
 
@@ -376,6 +360,7 @@ const AIPanel = {
 
   async resetDemo() {
     if (RetellCall.active) await RetellCall.stop();
+    this._stopTranscriptPolling();
     await API.ai.stopScenario();
     this._lastTranscript = [];
     this._transcriptMessages = [];

@@ -39,17 +39,8 @@ const RetellCall = {
     });
 
     this.client.on('update', (update) => {
-      // Handle transcript from Retell SDK (various field names across versions)
-      if (update.transcript) {
-        this._emit('transcript', update.transcript);
-      }
-    });
-
-    // Some Retell SDK versions fire 'transcript' directly
-    this.client.on('transcript', (transcript) => {
-      if (Array.isArray(transcript)) {
-        this._emit('transcript', transcript);
-      }
+      // We no longer use SDK transcript updates (they're partial fragments).
+      // Instead we poll the Retell API for the complete finalized transcript.
     });
 
     this.client.on('error', (error) => {
