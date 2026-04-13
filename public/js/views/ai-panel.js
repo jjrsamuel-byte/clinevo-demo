@@ -191,14 +191,15 @@ const AIPanel = {
 
         RetellCall.on('ended', () => {
           State.set('aiRunning', false);
-          const msgs = State.get('aiMessages');
-          msgs.push({ role: 'system', text: 'Call ended' });
-          State.set('aiMessages', msgs);
 
-          // Save the full transcript to call log
-          this._saveCallTranscript();
-
-          AIPanel.render();
+          // Fetch complete transcript from Retell API (the SDK only gives partials)
+          this._fetchCompleteTranscript(RetellCall.callId).then(() => {
+            const msgs = State.get('aiMessages');
+            msgs.push({ role: 'system', text: 'Call ended' });
+            State.set('aiMessages', msgs);
+            this._saveCallTranscript();
+            AIPanel.render();
+          });
         });
 
         RetellCall.on('agent_talking', (isTalking) => {
@@ -271,6 +272,63 @@ const AIPanel = {
     if (chatArea) {
       ChatTranscript.render(allMsgs, chatArea);
       chatArea.scrollTop = chatArea.scrollHeight;
+    }
+  },
+
+  async _fetchCompleteTranscript(callId) {
+    if (!callId) return;
+
+    // Retell needs a moment to process the transcript after call ends
+    await new Promise(r => setTimeout(r, 2000));
+
+    try {
+      const res = await fetch(`/api/v1/retell/call/${callId}`);
+      const data = await res.json();
+
+      if (data.transcriptObject && data.transcriptObject.length > 0) {
+        // Use the structured transcript object from Retell
+        const transcriptMsgs = data.transcriptObject.map(utt => ({
+          role: (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller',
+          text: utt.content || utt.text || ''
+        })).filter(m => m.text.trim());
+
+        this._transcriptMessages = transcriptMsgs;
+
+        // Rebuild display with complete transcript
+        const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
+        const allMsgs = [...systemMsgs, ...transcriptMsgs];
+        State.set('aiMessages', allMsgs);
+
+        const chatArea = document.getElementById('ai-chat-area');
+        if (chatArea) {
+          ChatTranscript.render(allMsgs, chatArea);
+          chatArea.scrollTop = chatArea.scrollHeight;
+        }
+      } else if (data.transcript) {
+        // Fall back to plain text transcript
+        const lines = data.transcript.split('\n').filter(l => l.trim());
+        const transcriptMsgs = lines.map(line => {
+          const isAgent = line.startsWith('Agent:') || line.startsWith('AI:');
+          const text = line.replace(/^(Agent|AI|User|Caller|Customer):\s*/i, '');
+          return { role: isAgent ? 'ai' : 'caller', text };
+        }).filter(m => m.text.trim());
+
+        if (transcriptMsgs.length > 0) {
+          this._transcriptMessages = transcriptMsgs;
+          const systemMsgs = State.get('aiMessages').filter(m => m.role === 'system');
+          const allMsgs = [...systemMsgs, ...transcriptMsgs];
+          State.set('aiMessages', allMsgs);
+
+          const chatArea = document.getElementById('ai-chat-area');
+          if (chatArea) {
+            ChatTranscript.render(allMsgs, chatArea);
+            chatArea.scrollTop = chatArea.scrollHeight;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch complete transcript:', err);
+      // Fall through — will use whatever partial transcript we have
     }
   },
 

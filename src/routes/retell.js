@@ -244,6 +244,29 @@ router.post('/webhook', (req, res) => {
   res.json({ tool_results: results });
 });
 
+// Fetch complete call details (transcript) from Retell after call ends
+router.get('/call/:callId', async (req, res) => {
+  const apiKey = process.env.RETELL_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'RETELL_API_KEY not set' });
+
+  try {
+    const Retell = require('retell-sdk');
+    const client = new Retell({ apiKey });
+    const call = await client.call.retrieve(req.params.callId);
+    res.json({
+      callId: call.call_id,
+      transcript: call.transcript || '',
+      transcriptObject: call.transcript_object || [],
+      callAnalysis: call.call_analysis || null,
+      startTimestamp: call.start_timestamp,
+      endTimestamp: call.end_timestamp
+    });
+  } catch (err) {
+    console.error('Retell call fetch error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Check if Retell is configured
 router.get('/status', (req, res) => {
   res.json({
