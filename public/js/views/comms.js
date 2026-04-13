@@ -7,6 +7,7 @@ const CommsView = {
     main.innerHTML = `
       <div class="view-header">
         <h2>Communications</h2>
+        <button class="btn btn-teal btn-sm" id="comms-send-all">📤 Send All Pending</button>
       </div>
       <div class="filter-tabs" id="comms-filter">
         <button class="active" data-filter="all">All</button>
@@ -15,8 +16,23 @@ const CommsView = {
         <button data-filter="vaccination_due">Vaccination</button>
         <button data-filter="prescription_refill">Prescriptions</button>
       </div>
-      <div id="comms-list"></div>
+      <div class="card">
+        <table class="data-table" id="comms-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Channel</th>
+              <th>Message</th>
+              <th>Status</th>
+              <th>Sent</th>
+            </tr>
+          </thead>
+          <tbody id="comms-body"></tbody>
+        </table>
+      </div>
     `;
+
+    document.getElementById('comms-send-all').addEventListener('click', () => this.sendAllPending());
 
     document.querySelectorAll('#comms-filter button').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -34,20 +50,86 @@ const CommsView = {
     const params = this.currentFilter !== 'all' ? { type: this.currentFilter } : {};
     const comms = await API.comms.list(params);
 
-    const list = document.getElementById('comms-list');
-    if (!list) return;
+    const tbody = document.getElementById('comms-body');
+    if (!tbody) return;
 
     if (comms.length === 0) {
-      list.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">💬</div>
-          <p>No communications yet</p>
-        </div>
-      `;
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding:40px">No communications yet</td></tr>`;
       return;
     }
 
-    list.innerHTML = comms.map(c => NotificationCard.render(c)).join('');
+    const typeLabels = {
+      appointment_reminder: 'Reminder',
+      vaccination_due: 'Vaccination',
+      post_visit_followup: 'Follow-up',
+      prescription_refill: 'Prescription'
+    };
+    const typeIcons = {
+      appointment_reminder: '📅',
+      vaccination_due: '💉',
+      post_visit_followup: '📋',
+      prescription_refill: '💊'
+    };
+
+    tbody.innerHTML = comms.map(c => {
+      const label = typeLabels[c.type] || c.type;
+      const icon = typeIcons[c.type] || '📩';
+      const statusClass = c.status === 'sent' ? 'tag-status' : c.status === 'pending' ? 'tag-pending' : 'tag-missed';
+      const timeStr = c.sentAt ? NotificationCard.formatTimeAgo(c.sentAt) : '—';
+      const msgPreview = c.message.length > 80 ? c.message.substring(0, 80) + '...' : c.message;
+
+      return `
+        <tr data-comm-id="${c.id}">
+          <td><span class="tag tag-species">${icon} ${label}</span></td>
+          <td>${c.channel.toUpperCase()}</td>
+          <td class="text-small">${msgPreview}</td>
+          <td><span class="tag ${statusClass}">${c.status}</span></td>
+          <td class="text-small text-muted">${timeStr}</td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('tr[data-comm-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        const comm = comms.find(c => c.id === Number(row.dataset.commId));
+        if (comm) this.showDetail(comm);
+      });
+    });
+  },
+
+  showDetail(comm) {
+    const typeLabels = {
+      appointment_reminder: 'Appointment Reminder',
+      vaccination_due: 'Vaccination Due',
+      post_visit_followup: 'Follow-up',
+      prescription_refill: 'Prescription Refill'
+    };
+    Modal.open(`
+      <h3>${typeLabels[comm.type] || comm.type}</h3>
+      <div class="modal-field"><label>Channel</label><div class="value">${comm.channel.toUpperCase()}</div></div>
+      <div class="modal-field"><label>Status</label><div class="value"><span class="tag ${comm.status === 'sent' ? 'tag-status' : 'tag-pending'}">${comm.status}</span></div></div>
+      <div class="modal-field"><label>Message</label><div class="value">${comm.message}</div></div>
+      ${comm.sentAt ? `<div class="modal-field"><label>Sent</label><div class="value">${new Date(comm.sentAt).toLocaleString('en-GB')}</div></div>` : ''}
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="Modal.close()">Close</button>
+      </div>
+    `);
+  },
+
+  async sendAllPending() {
+    const btn = document.getElementById('comms-send-all');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      await API.post('/comms/send-all');
+      await this.loadComms();
+    } catch (err) {
+      console.error('Send all error:', err);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '📤 Send All Pending';
   }
 };
 

@@ -66,6 +66,8 @@ const AIPanel = {
         </div>
       ` : ''}
 
+      ${this._getScriptHtml(aiMode, running) || ''}
+
       <div class="ai-chat-area" id="ai-chat-area">
         ${State.get('aiMessages').length === 0 ? `
           <div class="ai-status">
@@ -114,6 +116,19 @@ const AIPanel = {
 
     document.getElementById('ai-start').addEventListener('click', () => this.startDemo());
     document.getElementById('ai-reset').addEventListener('click', () => this.resetDemo());
+
+    // Script panel toggle
+    const scriptToggle = document.getElementById('ai-script-toggle');
+    if (scriptToggle) {
+      scriptToggle.addEventListener('click', () => {
+        const body = document.getElementById('ai-script-body');
+        if (body) {
+          const collapsed = body.style.display === 'none';
+          body.style.display = collapsed ? '' : 'none';
+          scriptToggle.textContent = collapsed ? '▼' : '▶';
+        }
+      });
+    }
 
     // Live text mode send
     const liveInput = document.getElementById('ai-live-msg');
@@ -292,6 +307,73 @@ const AIPanel = {
       State.set('aiMessages', messages);
       ChatTranscript.render(messages, document.getElementById('ai-chat-area'));
     }
+  },
+
+  _getScriptHtml(mode, running) {
+    if (mode !== 'scripted' || !running) return '';
+    const scenarioSelect = document.getElementById('ai-scenario-select');
+    const scenarioId = scenarioSelect ? scenarioSelect.value : State.get('_activeScenarioId');
+    if (!scenarioId) return '';
+    State.set('_activeScenarioId', scenarioId);
+
+    const scripts = {
+      emergency: [
+        { role: 'ai', text: 'Good morning, Oakwood Veterinary Practice, how can I help you today?' },
+        { role: 'caller', text: "Hi, I'm really worried — my dog's just eaten a whole bar of dark chocolate about 20 minutes ago. He's a small cockapoo, about 8kg. What should I do?" },
+        { role: 'ai', text: "I completely understand your worry, and you've done the right thing calling us straight away. Chocolate can be very dangerous for dogs, especially dark chocolate. Can you tell me roughly how much he ate and how he's behaving right now?" },
+        { role: 'caller', text: "It was a 100g bar of 70% dark chocolate. He seems okay at the moment but he's panting a bit and quite restless." },
+        { role: 'ai', text: "Right, at that dose for an 8kg dog, this is definitely something we need to see urgently. The sooner we can treat him, the better the outcome. I'm going to get him booked in as an emergency right now. Can I take your name please?" },
+        { role: 'caller', text: "It's James Whitfield. Rufus is the dog's name." },
+        { role: 'action', text: 'Search PMS for client → Book emergency slot with Dr Chen → Send confirmation SMS' },
+        { role: 'ai', text: "That's all booked. I've got Rufus in with Dr Chen as an emergency. Please bring him straight in — don't try to make him sick yourself, the vet will handle that safely." },
+        { role: 'caller', text: "Yes, I've been before. I'll head straight there now. Thank you so much." },
+        { role: 'ai', text: "I've sent you a confirmation text as well. Drive safely, and we'll have the team ready for Rufus when you arrive." }
+      ],
+      routine: [
+        { role: 'ai', text: 'Good morning, Oakwood Veterinary Practice, how can I help you today?' },
+        { role: 'caller', text: "Hi there, I'd like to book my cat in for her annual vaccination please. Her name's Biscuit." },
+        { role: 'ai', text: "Of course! Let me pull up Biscuit's records. Can I take your name?" },
+        { role: 'caller', text: "It's Sarah Thornton." },
+        { role: 'action', text: 'Search PMS for client → Check availability → Book vaccination with Dr Hargreaves' },
+        { role: 'ai', text: "I've got a few options for you. There's a slot with Dr Hargreaves on Tuesday at 9:15am, or Wednesday at 10:00am. Which would suit you better?" },
+        { role: 'caller', text: "Tuesday at 9:15 sounds perfect." },
+        { role: 'ai', text: "That's booked for you — Biscuit with Dr Hargreaves on Tuesday at 9:15am. I've flagged that she can be a little nervous, so the team will have a quiet room ready with some Feliway." },
+        { role: 'caller', text: "Oh that's lovely, thank you so much." },
+        { role: 'ai', text: "You're welcome! I've sent you a confirmation text. We'll see you and Biscuit on Tuesday. Bye for now." }
+      ],
+      faq: [
+        { role: 'ai', text: 'Good afternoon, Oakwood Veterinary Practice, how can I help you today?' },
+        { role: 'caller', text: "Hi, I've just moved to the area and I'm looking for a new vet for my rabbits. Do you see rabbits?" },
+        { role: 'ai', text: "Welcome to the area! Yes, we absolutely do see rabbits. We have Dr Priya Sharma who specialises in exotics, including rabbits." },
+        { role: 'caller', text: "That's great. What are your opening hours? And do you do Saturday appointments?" },
+        { role: 'ai', text: "We're open Monday to Friday, 8am until 6pm, and Saturdays 9am to 1pm. Dr Sharma is usually in on Tuesdays, Thursdays, and Fridays." },
+        { role: 'caller', text: "And how much is a routine consultation for a rabbit?" },
+        { role: 'ai', text: "I don't have the exact pricing to hand, but I can have one of the team call you back with the full fee schedule. Would you like me to arrange that?" },
+        { role: 'caller', text: "Yes please. My name is Lisa and my number is 07855 332211." },
+        { role: 'action', text: 'Create callback note for new client enquiry' },
+        { role: 'ai', text: "I've made a note for the team to call you back, Lisa. They'll ring you usually within a few hours." }
+      ]
+    };
+
+    const lines = scripts[scenarioId];
+    if (!lines) return '';
+
+    return `
+      <div class="ai-script-panel" id="ai-script-panel">
+        <div class="ai-script-header">
+          <h4>Full Script</h4>
+          <button class="btn btn-ghost btn-sm" id="ai-script-toggle">▼</button>
+        </div>
+        <div class="ai-script-body" id="ai-script-body">
+          ${lines.map(l => `
+            <div class="script-line script-${l.role}">
+              <span class="script-role">${l.role === 'ai' ? 'AI' : l.role === 'caller' ? 'Caller' : '⚡ Action'}</span>
+              <span class="script-text">${l.text}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   },
 
   renderActions() {

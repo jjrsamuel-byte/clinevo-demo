@@ -9,7 +9,8 @@ function renderSidebar() {
     { id: 'clients', icon: '👥', label: 'Clients' },
     { id: 'patients', icon: '🐾', label: 'Patients' },
     { id: 'staff', icon: '🩺', label: 'Staff' },
-    { id: 'comms', icon: '💬', label: 'Communications' }
+    { id: 'comms', icon: '💬', label: 'Communications' },
+    { id: 'auditLog', icon: '📋', label: 'Audit Log' }
   ];
 
   el.innerHTML = `

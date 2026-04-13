@@ -76,7 +76,8 @@ function generateVaccinationReminders() {
         patientId: patient.id,
         channel: 'sms',
         message: `Hi ${client.firstName}, ${patient.name}'s annual vaccination is due on ${dueDateStr}. Would you like us to book an appointment? Reply YES or call 020 7946 0123.`,
-        sentAt: new Date().toISOString()
+        status: 'pending',
+        sentAt: null
       });
     }
   }

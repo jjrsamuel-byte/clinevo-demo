@@ -21,7 +21,8 @@
     clients: ClientsView,
     patients: PatientsView,
     staff: StaffView,
-    comms: CommsView
+    comms: CommsView,
+    auditLog: AuditLogView
   };
 
   async function renderCurrentView() {

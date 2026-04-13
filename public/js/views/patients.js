@@ -62,6 +62,17 @@ const PatientsView = {
     });
   },
 
+  formatTimeAgo(isoStr) {
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  },
+
   calcAge(dob) {
     const birth = new Date(dob);
     const now = new Date();
@@ -119,6 +130,31 @@ const PatientsView = {
         <div class="modal-field">
           <label>Vaccination Due</label>
           <div class="value">${new Date(data.vaccinationDue).toLocaleDateString('en-GB')}</div>
+        </div>
+      ` : ''}
+      <div style="border-top:1px solid var(--border-light);margin:16px 0 12px;padding-top:12px">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--clinevo-purple)">Activity & Communications</h4>
+      </div>
+      <div class="modal-field">
+        <label>Last Action</label>
+        <div class="value">${data.lastAction
+          ? `<span class="tag ${data.lastAction.type === 'call' ? 'tag-booked' : 'tag-info'}">${data.lastAction.type === 'call' ? '📞 Call' : '📤 Comms'}</span> ${data.lastAction.description} <span class="text-small text-muted">(${this.formatTimeAgo(data.lastAction.date)})</span>`
+          : '<span class="text-muted">No activity recorded</span>'
+        }</div>
+      </div>
+      <div class="modal-field">
+        <label>Next Communication</label>
+        <div class="value">${data.nextComm
+          ? `<span class="tag tag-pending">⏳ Pending</span> ${data.nextComm.message.substring(0, 80)}...`
+          : data.lastAction
+            ? '<span class="tag tag-status">✓ All sent</span> No pending communications'
+            : '<span class="text-muted">None scheduled</span>'
+        }</div>
+      </div>
+      ${data.lastCall ? `
+        <div class="modal-field">
+          <label>Last Call</label>
+          <div class="value">${data.lastCall.resolution || 'Phone call'} <span class="text-small text-muted">(${data.lastCall.date})</span></div>
         </div>
       ` : ''}
       <div class="modal-actions">
