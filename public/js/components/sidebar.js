@@ -3,9 +3,9 @@ function renderSidebar() {
   const currentView = State.get('currentView');
 
   const links = [
-    { id: 'calendar', icon: '📅', label: 'Calendar' },
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     { id: 'callLog', icon: '☎️', label: 'Call Log' },
+    { id: 'calendar', icon: '📅', label: 'Calendar' },
     { id: 'clients', icon: '👥', label: 'Clients' },
     { id: 'patients', icon: '🐾', label: 'Patients' },
     { id: 'staff', icon: '🩺', label: 'Staff' },
@@ -15,8 +15,24 @@ function renderSidebar() {
 
   el.innerHTML = `
     <div class="sidebar-logo">
-      <h2>Oakwood Vets</h2>
-      <span>Practice Manager</span>
+      <div class="sidebar-brand-mark">
+        <svg width="28" height="28" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.63,14.77 A9,9 0 1 1 17.63,5.23" fill="none" stroke="#534AB7" stroke-width="2.2" stroke-linecap="butt"/>
+          <path d="M14.75,12.97 A5.6,5.6 0 1 1 14.75,7.03" fill="none" stroke="#45C4BC" stroke-width="1.5" stroke-linecap="butt"/>
+          <path d="M12.37,11.48 A2.8,2.8 0 1 1 12.37,8.52" fill="none" stroke="#DCE0EC" stroke-width="1.2" stroke-linecap="butt"/>
+          <line x1="1" y1="8.79" x2="1" y2="11.21" stroke="#534AB7" stroke-width="1.43" stroke-linecap="butt"/>
+          <line x1="4.4" y1="9.17" x2="4.4" y2="10.83" stroke="#45C4BC" stroke-width="0.98" stroke-linecap="butt"/>
+          <line x1="7.2" y1="9.34" x2="7.2" y2="10.66" stroke="#DCE0EC" stroke-width="0.78" stroke-linecap="butt"/>
+        </svg>
+      </div>
+      <div>
+        <h2>Clinevo</h2>
+        <span>AI Receptionist</span>
+      </div>
+    </div>
+    <div class="sidebar-practice-name">
+      <span class="practice-dot"></span>
+      Oakwood Veterinary Practice
     </div>
     <nav class="sidebar-nav">
       ${links.map(l => `
@@ -27,11 +43,7 @@ function renderSidebar() {
       `).join('')}
     </nav>
     <div class="sidebar-footer">
-      <div class="powered-by">Powered by</div>
-      <div class="clinevo-badge">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#45C4BC" stroke-width="2"/><path d="M8 12l3 3 5-5" stroke="#45C4BC" stroke-width="2" stroke-linecap="round"/></svg>
-        Clinevo AI
-      </div>
+      <div class="clinevo-tagline">AI for clinics that care.</div>
     </div>
   `;
 

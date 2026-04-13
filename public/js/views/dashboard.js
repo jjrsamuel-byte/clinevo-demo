@@ -4,7 +4,7 @@ const DashboardView = {
     const main = document.getElementById('main');
     main.innerHTML = `
       <div class="view-header">
-        <h2>AI Receptionist Dashboard</h2>
+        <h2>Clinevo AI Dashboard</h2>
       </div>
       <div id="dashboard-content"><div class="loading">Loading dashboard...</div></div>
     `;
@@ -20,11 +20,8 @@ const DashboardView = {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
 
-    // Get today's calls for recent activity
-    const today = new Date().toISOString().split('T')[0];
     const recentCalls = calls.slice(0, 8);
 
-    // Pre-fetch names
     const [clients, patients] = await Promise.all([
       API.clients.list(),
       API.patients.list()
@@ -33,6 +30,23 @@ const DashboardView = {
     clients.forEach(c => clientMap[c.id] = `${c.firstName} ${c.lastName}`);
     const patientMap = {};
     patients.forEach(p => patientMap[p.id] = p.name);
+
+    // Revenue metrics
+    const outboundCalls = calls.filter(c => c.direction === 'outbound');
+    const reviewsSent = calls.filter(c => c.reviewSent).length;
+    const carePlanLeads = calls.filter(c => c.carePlanInterest).length;
+    const revenueRecovered = calls.reduce((sum, c) => sum + (c.revenueRecovered || 0), 0);
+    const lapsedReactivated = calls.filter(c => c.outcome === 'lapsed_reactivation').length;
+    const followUpCalls = calls.filter(c => c.outcome === 'post_surgery_followup').length;
+
+    // Estimate missed revenue from lapsed patients not yet contacted
+    const lapsedPatients = patients.filter(p => {
+      if (!p.vaccinationDue) return false;
+      const due = new Date(p.vaccinationDue);
+      const now = new Date();
+      const monthsOverdue = (now - due) / (1000 * 60 * 60 * 24 * 30);
+      return monthsOverdue > 1;
+    });
 
     container.innerHTML = `
       <!-- Stats Cards -->
@@ -45,21 +59,57 @@ const DashboardView = {
           <div class="dash-stat-value">${stats.completed}</div>
           <div class="dash-stat-label">Handled by AI</div>
         </div>
-        <div class="dash-stat-card dash-stat-red">
-          <div class="dash-stat-value">${stats.missed}</div>
-          <div class="dash-stat-label">Missed</div>
-        </div>
         <div class="dash-stat-card dash-stat-purple">
           <div class="dash-stat-value">${stats.resolutionRate}%</div>
           <div class="dash-stat-label">Resolution Rate</div>
         </div>
         <div class="dash-stat-card">
-          <div class="dash-stat-value">${stats.avgDuration} min</div>
-          <div class="dash-stat-label">Avg Duration</div>
+          <div class="dash-stat-value">${outboundCalls.length}</div>
+          <div class="dash-stat-label">Outbound Calls</div>
         </div>
         <div class="dash-stat-card dash-stat-teal">
-          <div class="dash-stat-value">${stats.todayCompleted}/${stats.todayTotal}</div>
-          <div class="dash-stat-label">Today's Calls</div>
+          <div class="dash-stat-value">${reviewsSent}</div>
+          <div class="dash-stat-label">Reviews Sent</div>
+        </div>
+        <div class="dash-stat-card dash-stat-red">
+          <div class="dash-stat-value">${stats.missed}</div>
+          <div class="dash-stat-label">Missed</div>
+        </div>
+      </div>
+
+      <!-- Revenue & Growth Section -->
+      <div class="dash-revenue-banner">
+        <div class="revenue-card revenue-recovered">
+          <div class="revenue-icon">💰</div>
+          <div>
+            <div class="revenue-value">£${revenueRecovered}</div>
+            <div class="revenue-label">Revenue Recovered</div>
+            <div class="revenue-sub">from ${lapsedReactivated} lapsed client${lapsedReactivated !== 1 ? 's' : ''} reactivated</div>
+          </div>
+        </div>
+        <div class="revenue-card revenue-reviews">
+          <div class="revenue-icon">⭐</div>
+          <div>
+            <div class="revenue-value">${reviewsSent} Reviews</div>
+            <div class="revenue-label">Google Review Links Sent</div>
+            <div class="revenue-sub">Auto-sent after positive follow-up calls</div>
+          </div>
+        </div>
+        <div class="revenue-card revenue-care">
+          <div class="revenue-icon">🛡️</div>
+          <div>
+            <div class="revenue-value">${carePlanLeads} Leads</div>
+            <div class="revenue-label">Care Plan Interest</div>
+            <div class="revenue-sub">Clients interested in wellness plans</div>
+          </div>
+        </div>
+        <div class="revenue-card revenue-lapsed">
+          <div class="revenue-icon">⚠️</div>
+          <div>
+            <div class="revenue-value">${lapsedPatients.length} Patients</div>
+            <div class="revenue-label">Overdue / Lapsed</div>
+            <div class="revenue-sub">Est. £${lapsedPatients.length * 65} potential missed revenue</div>
+          </div>
         </div>
       </div>
 
@@ -70,6 +120,8 @@ const DashboardView = {
           <div class="dash-outcome-list">
             ${this.renderOutcomeBar('Appointment Booked', stats.outcomes.appointment_booked || 0, stats.completed, 'var(--clinevo-purple)')}
             ${this.renderOutcomeBar('Info Provided', stats.outcomes.info_provided || 0, stats.completed, 'var(--signal-teal)')}
+            ${this.renderOutcomeBar('Post-Surgery Follow-up', stats.outcomes.post_surgery_followup || 0, stats.completed, 'var(--forest-teal)')}
+            ${this.renderOutcomeBar('Lapsed Reactivated', stats.outcomes.lapsed_reactivation || 0, stats.completed, 'var(--success)')}
             ${this.renderOutcomeBar('Callback Requested', stats.outcomes.callback_requested || 0, stats.completed, 'var(--warning)')}
             ${this.renderOutcomeBar('Emergency Escalated', stats.outcomes.emergency_escalated || 0, stats.completed, 'var(--danger)')}
           </div>
@@ -81,13 +133,14 @@ const DashboardView = {
           <div class="dash-activity-feed">
             ${recentCalls.map(c => {
               const clientName = c.clientId ? (clientMap[c.clientId] || 'Unknown') : 'Unknown caller';
-              const icon = this.outcomeIcon(c.outcome, c.status);
+              const icon = this.outcomeIcon(c.outcome, c.status, c.direction);
+              const reviewBadge = c.reviewSent ? ' ⭐' : '';
               return `
                 <div class="dash-activity-item">
                   <span class="dash-activity-icon">${icon}</span>
                   <div class="dash-activity-body">
-                    <div class="dash-activity-text">${c.resolution}</div>
-                    <div class="dash-activity-meta">${clientName} &middot; ${c.date} ${c.startTime}</div>
+                    <div class="dash-activity-text">${c.resolution || c.notes}${reviewBadge}</div>
+                    <div class="dash-activity-meta">${clientName} · ${c.date} ${c.startTime}${c.direction === 'outbound' ? ' · Outbound' : ''}</div>
                   </div>
                 </div>
               `;
@@ -142,13 +195,16 @@ const DashboardView = {
     `;
   },
 
-  outcomeIcon(outcome, status) {
+  outcomeIcon(outcome, status, direction) {
     if (status === 'missed') return '📵';
+    if (direction === 'outbound') return '📤';
     const icons = {
       appointment_booked: '📅',
       info_provided: 'ℹ️',
       callback_requested: '📞',
-      emergency_escalated: '🚨'
+      emergency_escalated: '🚨',
+      post_surgery_followup: '🩺',
+      lapsed_reactivation: '🔄'
     };
     return icons[outcome] || '📞';
   }
