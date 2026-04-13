@@ -190,6 +190,10 @@ const AIPanel = {
           const msgs = State.get('aiMessages');
           msgs.push({ role: 'system', text: 'Call ended' });
           State.set('aiMessages', msgs);
+
+          // Save the full transcript to call log
+          this._saveCallTranscript();
+
           AIPanel.render();
         });
 
@@ -254,6 +258,46 @@ const AIPanel = {
       State.set('aiMessages', msgs);
       const chatArea = document.getElementById('ai-chat-area');
       if (chatArea) ChatTranscript.render(msgs, chatArea);
+    }
+  },
+
+  async _saveCallTranscript() {
+    // Build transcript text from collected messages
+    const msgs = State.get('aiMessages').filter(m => m.role === 'ai' || m.role === 'caller');
+    if (msgs.length === 0) return;
+
+    const transcriptText = msgs.map(m => {
+      const role = m.role === 'ai' ? 'AI' : 'Caller';
+      return `${role}: ${m.text}`;
+    }).join('\n');
+
+    // Build a summary from the conversation
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    try {
+      await API.post('/calls', {
+        clientId: 0,
+        patientId: 0,
+        callId: `live_${Date.now()}`,
+        date: dateStr,
+        startTime: timeStr,
+        endTime: timeStr,
+        duration: Math.ceil(msgs.length * 0.3),
+        status: 'completed',
+        outcome: 'info_provided',
+        resolution: 'Live voice call via Clinevo AI',
+        summary: `Live voice call with ${msgs.length} exchanges. ${msgs.filter(m => m.role === 'ai').length} AI responses, ${msgs.filter(m => m.role === 'caller').length} caller messages.`,
+        successful: true,
+        sentiment: 'neutral',
+        notes: 'Live Retell voice call',
+        transcript: transcriptText,
+        createdBy: 'ai-receptionist',
+        direction: 'inbound'
+      });
+    } catch (err) {
+      console.error('Failed to save call transcript:', err);
     }
   },
 
@@ -416,6 +460,9 @@ SSE.on('ai:step', (data) => {
     State.set('aiMessages', msgs);
     const chatArea = document.getElementById('ai-chat-area');
     if (chatArea) ChatTranscript.render(msgs, chatArea);
+
+    // Save scripted call transcript to call log
+    AIPanel._saveCallTranscript();
   }
 });
 
