@@ -152,7 +152,10 @@ router.post('/webhook', (req, res) => {
         }
 
         case 'check_availability': {
-          const date = tool_parameters.date || new Date().toISOString().split('T')[0];
+          // Use local date to avoid UTC/BST mismatch
+          const now = new Date();
+          const defaultDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const date = tool_parameters.date || defaultDate;
           const typeId = tool_parameters.appointment_type_id || tool_parameters.typeId || 1;
           const appts = store.getAll('appointments', { date });
           const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
@@ -180,7 +183,19 @@ router.post('/webhook', (req, res) => {
             }
           }
 
-          result = { available_slots: slots.slice(0, 8), date, appointment_type: type ? type.name : 'Consultation' };
+          // Return clear, AI-friendly response
+          const topSlots = slots.slice(0, 10);
+          result = {
+            available: topSlots.length > 0,
+            total_available_slots: slots.length,
+            suggested_slots: topSlots.map(s => `${s.startTime} with ${s.staffName}`),
+            slots: topSlots,
+            date,
+            appointment_type: type ? type.name : 'Consultation',
+            message: topSlots.length > 0
+              ? `${slots.length} slots available on ${date}. Here are some options: ${topSlots.slice(0, 3).map(s => `${s.startTime} with ${s.staffName}`).join(', ')}`
+              : `No availability on ${date}. Try another date.`
+          };
           broadcastAction(store, `Checked availability for ${date}`, `GET /api/v1/availability?date=${date}`);
           break;
         }
@@ -206,7 +221,8 @@ router.post('/webhook', (req, res) => {
             createdBy: 'ai-receptionist'
           });
 
-          result = { success: true, appointment_id: appt.id, message: `Appointment booked for ${appt.startTime} on ${appt.date}` };
+          const bookedStaff = store.getById('staff', appt.staffId);
+          result = { success: true, appointment_id: appt.id, date: appt.date, time: appt.startTime, end_time: appt.endTime, vet: bookedStaff ? bookedStaff.name : 'TBC', message: `Appointment booked for ${appt.startTime} on ${appt.date}${bookedStaff ? ' with ' + bookedStaff.name : ''}` };
           broadcastAction(store, `Booked appointment #${appt.id}`, 'POST /api/v1/appointments');
           break;
         }
