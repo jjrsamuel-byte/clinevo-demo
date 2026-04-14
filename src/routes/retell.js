@@ -155,7 +155,35 @@ router.post('/webhook', (req, res) => {
           // Use local date to avoid UTC/BST mismatch
           const now = new Date();
           const defaultDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-          const date = tool_parameters.date || defaultDate;
+          let date = defaultDate;
+
+          // Parse flexible date formats from the AI agent
+          if (tool_parameters.date) {
+            const raw = tool_parameters.date.trim();
+            // Already YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+              date = raw;
+            } else if (raw.toLowerCase() === 'today') {
+              date = defaultDate;
+            } else if (raw.toLowerCase() === 'tomorrow') {
+              const tom = new Date(now);
+              tom.setDate(tom.getDate() + 1);
+              date = `${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
+            } else {
+              // Try parsing natural date strings like "June 7, 2026", "7th June", "7/6/2026"
+              const parsed = new Date(raw);
+              if (!isNaN(parsed.getTime())) {
+                date = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+              } else {
+                // Last resort: try adding current year
+                const withYear = new Date(raw + ' ' + now.getFullYear());
+                if (!isNaN(withYear.getTime())) {
+                  date = `${withYear.getFullYear()}-${String(withYear.getMonth()+1).padStart(2,'0')}-${String(withYear.getDate()).padStart(2,'0')}`;
+                }
+              }
+            }
+          }
+          console.log('check_availability: raw date =', tool_parameters.date, '→ parsed =', date);
           const typeId = tool_parameters.appointment_type_id || tool_parameters.typeId || 1;
           const appts = store.getAll('appointments', { date });
           const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
@@ -210,7 +238,24 @@ router.post('/webhook', (req, res) => {
           const patientId = p.patient_id || p.patientId || 0;
           let staffId = p.staff_id || p.staffId;
           const startTime = p.start_time || p.startTime || p.time || '10:00';
-          const date = p.date || defaultDate;
+
+          // Parse flexible date formats
+          let date = defaultDate;
+          if (p.date) {
+            const raw = p.date.trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+              date = raw;
+            } else if (raw.toLowerCase() === 'tomorrow') {
+              const tom = new Date(now);
+              tom.setDate(tom.getDate() + 1);
+              date = `${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
+            } else {
+              const parsed = new Date(raw);
+              if (!isNaN(parsed.getTime())) {
+                date = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+              }
+            }
+          }
 
           // If no staff specified, pick first available vet
           if (!staffId) {
