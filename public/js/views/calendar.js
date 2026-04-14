@@ -1,6 +1,13 @@
 // Calendar view
 const CalendarView = {
   async render() {
+    // Check for pending date from dashboard deep-link
+    const pending = State.get('viewFilter');
+    if (pending && pending.view === 'calendar' && pending.date) {
+      State.set('currentDate', pending.date);
+      State.set('viewFilter', null);
+    }
+
     const main = document.getElementById('main');
     const date = State.get('currentDate');
     const mode = State.get('calendarMode');

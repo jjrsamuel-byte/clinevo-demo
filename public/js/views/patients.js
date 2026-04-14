@@ -1,12 +1,26 @@
 // Patients view
 const PatientsView = {
   currentFilter: 'all',
+  dashFilter: null,
 
   async render() {
+    // Check for pending filter from dashboard deep-link
+    const pending = State.get('viewFilter');
+    if (pending && pending.view === 'patients') {
+      this.dashFilter = pending.filter || null;
+      State.set('viewFilter', null);
+    } else {
+      this.dashFilter = null;
+    }
+
+    const filterLabel = this.dashFilter === 'lapsed' ? 'Showing overdue/lapsed only'
+      : this.dashFilter === 'ai-created' ? 'Showing AI-registered only' : null;
+
     const main = document.getElementById('main');
     main.innerHTML = `
       <div class="view-header">
         <h2>Patients</h2>
+        ${filterLabel ? '<button class="btn btn-sm" id="patients-clear-filter" style="margin-left:8px">✕ ' + filterLabel + '</button>' : ''}
       </div>
       <div class="filter-tabs" id="species-filter">
         <button class="active" data-filter="all">All</button>
@@ -22,9 +36,21 @@ const PatientsView = {
         document.querySelectorAll('#species-filter button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentFilter = btn.dataset.filter;
+        this.dashFilter = null; // clear dashboard filter when user picks species
+        const clearBtn = document.getElementById('patients-clear-filter');
+        if (clearBtn) clearBtn.remove();
         this.loadPatients();
       });
     });
+
+    const clearBtn = document.getElementById('patients-clear-filter');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.dashFilter = null;
+        clearBtn.remove();
+        this.loadPatients();
+      });
+    }
 
     await this.loadPatients();
   },
@@ -36,6 +62,18 @@ const PatientsView = {
       patients = patients.filter(p => p.species !== 'Cat' && p.species !== 'Dog');
     } else if (this.currentFilter !== 'all') {
       patients = patients.filter(p => p.species === this.currentFilter);
+    }
+
+    // Apply dashboard deep-link filter
+    if (this.dashFilter === 'lapsed') {
+      patients = patients.filter(p => {
+        if (!p.vaccinationDue) return false;
+        const due = new Date(p.vaccinationDue);
+        const now = new Date();
+        return (now - due) / (1000 * 60 * 60 * 24 * 30) > 1;
+      });
+    } else if (this.dashFilter === 'ai-created') {
+      patients = patients.filter(p => p.createdBy === 'ai-receptionist');
     }
 
     const grid = document.getElementById('patients-grid');

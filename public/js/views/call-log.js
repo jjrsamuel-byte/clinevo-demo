@@ -3,20 +3,27 @@ const CallLogView = {
   currentFilter: 'all',
 
   async render() {
+    // Check for pending filter from dashboard deep-link
+    const pending = State.get('viewFilter');
+    if (pending && pending.view === 'callLog' && pending.filter) {
+      this.currentFilter = pending.filter;
+      State.set('viewFilter', null);
+    }
+
     const main = document.getElementById('main');
     main.innerHTML = `
       <div class="view-header">
         <h2>Call Log</h2>
       </div>
       <div class="filter-tabs" id="call-filter">
-        <button class="active" data-filter="all">All</button>
-        <button data-filter="inbound">Inbound</button>
-        <button data-filter="outbound">Outbound</button>
-        <button data-filter="appointment_booked">Booked</button>
-        <button data-filter="post_surgery_followup">Follow-up</button>
-        <button data-filter="lapsed_reactivation">Reactivated</button>
-        <button data-filter="noshow">No-shows</button>
-        <button data-filter="missed">Missed</button>
+        <button ${this.currentFilter === 'all' ? 'class="active"' : ''} data-filter="all">All</button>
+        <button ${this.currentFilter === 'inbound' ? 'class="active"' : ''} data-filter="inbound">Inbound</button>
+        <button ${this.currentFilter === 'outbound' ? 'class="active"' : ''} data-filter="outbound">Outbound</button>
+        <button ${this.currentFilter === 'appointment_booked' ? 'class="active"' : ''} data-filter="appointment_booked">Booked</button>
+        <button ${this.currentFilter === 'post_surgery_followup' ? 'class="active"' : ''} data-filter="post_surgery_followup">Follow-up</button>
+        <button ${this.currentFilter === 'lapsed_reactivation' ? 'class="active"' : ''} data-filter="lapsed_reactivation">Reactivated</button>
+        <button ${this.currentFilter === 'noshow' ? 'class="active"' : ''} data-filter="noshow">No-shows</button>
+        <button ${this.currentFilter === 'missed' ? 'class="active"' : ''} data-filter="missed">Missed</button>
       </div>
       <div class="card" style="overflow-x:auto">
         <table class="data-table" id="calls-table">

@@ -3,6 +3,13 @@ const CommsView = {
   currentFilter: 'all',
 
   async render() {
+    // Check for pending filter from dashboard deep-link
+    const pending = State.get('viewFilter');
+    if (pending && pending.view === 'comms' && pending.filter) {
+      this.currentFilter = pending.filter;
+      State.set('viewFilter', null);
+    }
+
     const main = document.getElementById('main');
     main.innerHTML = `
       <div class="view-header">
@@ -10,11 +17,11 @@ const CommsView = {
         <button class="btn btn-teal btn-sm" id="comms-send-all">📤 Send All Pending</button>
       </div>
       <div class="filter-tabs" id="comms-filter">
-        <button class="active" data-filter="all">All</button>
-        <button data-filter="appointment_reminder">Reminders</button>
-        <button data-filter="post_visit_followup">Follow-ups</button>
-        <button data-filter="vaccination_due">Vaccination</button>
-        <button data-filter="prescription_refill">Prescriptions</button>
+        <button ${this.currentFilter === 'all' ? 'class="active"' : ''} data-filter="all">All</button>
+        <button ${this.currentFilter === 'appointment_reminder' ? 'class="active"' : ''} data-filter="appointment_reminder">Reminders</button>
+        <button ${this.currentFilter === 'post_visit_followup' ? 'class="active"' : ''} data-filter="post_visit_followup">Follow-ups</button>
+        <button ${this.currentFilter === 'vaccination_due' ? 'class="active"' : ''} data-filter="vaccination_due">Vaccination</button>
+        <button ${this.currentFilter === 'prescription_refill' ? 'class="active"' : ''} data-filter="prescription_refill">Prescriptions</button>
       </div>
       <div class="card">
         <table class="data-table" id="comms-table">

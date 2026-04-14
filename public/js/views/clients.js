@@ -1,10 +1,22 @@
 // Clients view
 const ClientsView = {
+  pendingFilter: null,
+
   async render() {
+    // Check for pending filter from dashboard deep-link
+    const pending = State.get('viewFilter');
+    if (pending && pending.view === 'clients') {
+      this.pendingFilter = pending.filter || null;
+      State.set('viewFilter', null);
+    } else {
+      this.pendingFilter = null;
+    }
+
     const main = document.getElementById('main');
     main.innerHTML = `
       <div class="view-header">
         <h2>Clients</h2>
+        ${this.pendingFilter === 'ai-created' ? '<button class="btn btn-sm" id="clients-clear-filter" style="margin-left:8px">✕ Showing AI-registered only</button>' : ''}
       </div>
       <div class="search-bar">
         <span class="search-icon">🔍</span>
@@ -27,15 +39,30 @@ const ClientsView = {
     `;
 
     document.getElementById('client-search').addEventListener('input', (e) => {
+      this.pendingFilter = null; // clear filter when user searches
+      const clearBtn = document.getElementById('clients-clear-filter');
+      if (clearBtn) clearBtn.remove();
       this.loadClients(e.target.value);
     });
+
+    const clearBtn = document.getElementById('clients-clear-filter');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.pendingFilter = null;
+        clearBtn.remove();
+        this.loadClients();
+      });
+    }
 
     await this.loadClients();
   },
 
   async loadClients(search = '') {
     const params = search ? { search } : {};
-    const clients = await API.clients.list(params);
+    let clients = await API.clients.list(params);
+    if (this.pendingFilter === 'ai-created') {
+      clients = clients.filter(c => c.createdBy === 'ai-receptionist');
+    }
     const tbody = document.getElementById('clients-tbody');
     if (!tbody) return;
 
