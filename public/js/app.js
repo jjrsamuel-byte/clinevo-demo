@@ -44,13 +44,23 @@
     AIPanel.render();
   }
 
-  // When the AI receptionist books an appointment, jump the diary to that
-  // date so the prospect sees the slot fill in live during the demo call.
-  SSE.on('appointments:created', (appt) => {
+  // When the AI receptionist books OR reschedules an appointment, jump the
+  // diary to the new date so the prospect sees the slot fill in / move live
+  // during the demo call. Both events use the same handler — book_appointment
+  // upserts in place, so a "move" from the call arrives as appointments:updated.
+  const jumpToAiBooking = (appt) => {
     if (!appt || appt.createdBy !== 'ai-receptionist') return;
     if (appt.date) State.set('currentDate', appt.date);
     if (State.get('currentView') !== 'calendar') {
       State.set('currentView', 'calendar');
+    } else {
+      // Already on calendar — force a reload so the block repositions even if
+      // the date didn't change (e.g. same-day time shift).
+      if (typeof CalendarView !== 'undefined' && CalendarView.loadCalendar) {
+        CalendarView.loadCalendar();
+      }
     }
-  });
+  };
+  SSE.on('appointments:created', jumpToAiBooking);
+  SSE.on('appointments:updated', jumpToAiBooking);
 })();
