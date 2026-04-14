@@ -79,7 +79,11 @@ router.post('/webhook', (req, res) => {
   const results = [];
 
   for (const toolCall of toolCalls) {
-    const { tool_call_id, tool_name, tool_parameters } = toolCall;
+    const { tool_call_id, tool_parameters } = toolCall;
+    // Normalise tool name: Retell tool names are case-sensitive, but humans
+    // configuring the agent in the dashboard often capitalise (e.g. Search_client).
+    // Lowercase it before matching so the switch always hits.
+    const tool_name = String(toolCall.tool_name || '').toLowerCase();
     let result;
 
     try {
