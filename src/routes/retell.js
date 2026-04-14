@@ -454,24 +454,14 @@ router.get('/status', (req, res) => {
   });
 });
 
+const { broadcast } = require('./events');
 function broadcastAction(store, text, apiCall) {
-  // Emit through SSE
-  const http = require('http');
-  const postData = JSON.stringify({
-    type: 'retell:action',
-    data: { text, apiCall }
-  });
-  const options = {
-    hostname: 'localhost',
-    port: process.env.PORT || 3000,
-    path: '/api/v1/events/broadcast',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-  };
-  const r = http.request(options);
-  r.on('error', (err) => console.error('[broadcastAction] SSE post failed:', err.message));
-  r.write(postData);
-  r.end();
+  // Direct in-process broadcast — no HTTP round-trip, no failure mode.
+  try {
+    broadcast('retell:action', { text, apiCall });
+  } catch (err) {
+    console.error('[broadcastAction] broadcast failed:', err.message);
+  }
 }
 
 module.exports = router;

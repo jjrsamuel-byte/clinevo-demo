@@ -26,13 +26,26 @@ router.get('/', (req, res) => {
   });
 });
 
-// Broadcast arbitrary events (used by AI receptionist)
+// In-process broadcast — preferred, avoids any self-HTTP-loop fragility.
+// Other modules in the same Node process can `require('./events').broadcast(type, data)`
+// to push an SSE event to every connected client without an HTTP round-trip.
+function broadcast(type, data) {
+  for (const client of clients) {
+    try {
+      client.res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch (err) {
+      console.error('[events] broadcast write failed for one client:', err.message);
+    }
+  }
+}
+
+// Legacy HTTP broadcast — kept for backwards compatibility with anything
+// still calling /api/v1/events/broadcast over HTTP.
 router.post('/broadcast', (req, res) => {
   const { type, data } = req.body;
-  for (const client of clients) {
-    client.res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
-  }
+  broadcast(type, data);
   res.json({ ok: true });
 });
 
 module.exports = router;
+module.exports.broadcast = broadcast;

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const store = require('../data/store');
 const { getScenarios, runScenarioStep } = require('../ai/scripted-scenarios');
 const { handleLiveMessage } = require('../ai/live-mode');
+const { broadcast } = require('./events');
 
 // List available scenarios
 router.get('/scenarios', (req, res) => {
@@ -52,22 +53,18 @@ function scheduleNextStep(req) {
   scenarioTimer = setTimeout(async () => {
     if (!activeScenario) return;
 
-    const result = await runScenarioStep(step, store);
+    let result;
+    try {
+      result = await runScenarioStep(step, store);
+    } catch (err) {
+      console.error('[ai/scenario] step failed:', err);
+      activeScenario = null;
+      return;
+    }
     activeScenario.stepIndex++;
 
-    // Broadcast the step via SSE
-    const http = require('http');
-    const postData = JSON.stringify({ type: 'ai:step', data: { ...result, stepIndex: activeScenario ? activeScenario.stepIndex : 0 } });
-    const options = {
-      hostname: 'localhost',
-      port: process.env.PORT || 3000,
-      path: '/api/v1/events/broadcast',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-    };
-    const r = http.request(options);
-    r.write(postData);
-    r.end();
+    // Broadcast the step via SSE — direct in-process call, no HTTP round-trip.
+    broadcast('ai:step', { ...result, stepIndex: activeScenario ? activeScenario.stepIndex : 0 });
 
     scheduleNextStep(req);
   }, delay);
