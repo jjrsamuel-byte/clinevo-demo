@@ -116,15 +116,34 @@ router.post('/webhook', (req, res) => {
                 phone: client.phone,
                 notes: client.notes
               },
-              patients: patients.map(p => ({
-                id: p.id,
-                name: p.name,
-                species: p.species,
-                breed: p.breed,
-                weight: p.weight,
-                notes: p.notes,
-                alerts: p.alerts
-              }))
+              patients: patients.map(p => {
+                // Compute a friendly "is X due?" hint so the LLM can answer
+                // questions like "is Duke due his jab?" without having to do
+                // date arithmetic itself.
+                let vaccinationStatus = null;
+                if (p.vaccinationDue) {
+                  const due = new Date(p.vaccinationDue);
+                  const diffDays = Math.round((due - now) / 86400000);
+                  if (diffDays < 0) vaccinationStatus = `OVERDUE by ${Math.abs(diffDays)} days (was due ${p.vaccinationDue})`;
+                  else if (diffDays === 0) vaccinationStatus = `due today (${p.vaccinationDue})`;
+                  else if (diffDays <= 30) vaccinationStatus = `due in ${diffDays} days (${p.vaccinationDue}) — should book now`;
+                  else if (diffDays <= 90) vaccinationStatus = `due in ${diffDays} days (${p.vaccinationDue})`;
+                  else vaccinationStatus = `not due yet — next jab ${p.vaccinationDue}`;
+                }
+                return {
+                  id: p.id,
+                  name: p.name,
+                  species: p.species,
+                  breed: p.breed,
+                  weight: p.weight,
+                  dateOfBirth: p.dateOfBirth,
+                  microchip: p.microchip,
+                  notes: p.notes,
+                  alerts: p.alerts,
+                  vaccinationDue: p.vaccinationDue,
+                  vaccinationStatus
+                };
+              })
             };
           } else {
             result = { found: false, today: todayStr, tomorrow: tomorrowStr, message: `No client found matching "${query}". You can register them as a new client using the register_new_client tool.` };
@@ -218,7 +237,29 @@ router.post('/webhook', (req, res) => {
               }
             }
           }
-          console.log('check_availability: raw =', tool_parameters.date, '→ parsed =', date, '(today is', todayStr, ')');
+          // Optional time-of-day filter. Lets the agent honour caller
+          // preferences like "afternoon only" or "after 2pm" by passing
+          // from_time: "14:00" (and optionally to_time: "17:00").
+          const parseHHMM = (v) => {
+            if (!v) return null;
+            const s = String(v).trim().toLowerCase();
+            // Accept "14:00", "1400", "14", "2pm", "2 pm"
+            let m = s.match(/^(\d{1,2}):?(\d{2})?$/);
+            if (m) return Math.min(23, Math.max(0, parseInt(m[1], 10))) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+            m = s.match(/^(\d{1,2})\s*(am|pm)$/);
+            if (m) {
+              let h = parseInt(m[1], 10) % 12;
+              if (m[2] === 'pm') h += 12;
+              return h * 60;
+            }
+            if (s === 'morning') return null; // morning is the default 08:00 start
+            if (s === 'afternoon') return 12 * 60;
+            if (s === 'evening') return 17 * 60;
+            return null;
+          };
+          const fromMin = parseHHMM(tool_parameters.from_time || tool_parameters.fromTime || tool_parameters.preferred_time || tool_parameters.preferredTime);
+          const toMin = parseHHMM(tool_parameters.to_time || tool_parameters.toTime);
+          console.log('check_availability: raw =', tool_parameters.date, '→ parsed =', date, '| from:', fromMin, 'to:', toMin, '(today is', todayStr, ')');
           const typeId = tool_parameters.appointment_type_id || tool_parameters.typeId || 1;
           const appts = store.getAll('appointments', { date });
           const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
@@ -238,6 +279,9 @@ router.post('/webhook', (req, res) => {
             }
             for (let h = 8; h < 17; h++) {
               for (const m of [0, 15, 30, 45]) {
+                const minOfDay = h * 60 + m;
+                if (fromMin !== null && minOfDay < fromMin) continue;
+                if (toMin !== null && minOfDay > toMin) continue;
                 const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
                 if (!busyTimes.has(time)) {
                   slots.push({ staffId: vet.id, staffName: vet.name, date, startTime: time, specialisms: vet.specialisms });
