@@ -67,11 +67,18 @@ router.post('/webhook', (req, res) => {
         case 'search_client': {
           const query = tool_parameters.name || tool_parameters.query || tool_parameters.search || '';
           const clients = store.getAll('clients', { search: query });
+          const now = new Date();
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const tom = new Date(now); tom.setDate(tom.getDate() + 1);
+          const tomorrowStr = `${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
+
           if (clients.length > 0) {
             const client = clients[0];
             const patients = store.getAll('patients', { clientId: client.id });
             result = {
               found: true,
+              today: todayStr,
+              tomorrow: tomorrowStr,
               client: {
                 id: client.id,
                 name: `${client.title || ''} ${client.firstName} ${client.lastName}`.trim(),
@@ -89,7 +96,7 @@ router.post('/webhook', (req, res) => {
               }))
             };
           } else {
-            result = { found: false, message: `No client found matching "${query}". You can register them as a new client using the register_new_client tool.` };
+            result = { found: false, today: todayStr, tomorrow: tomorrowStr, message: `No client found matching "${query}". You can register them as a new client using the register_new_client tool.` };
           }
 
           // Broadcast action to SSE
@@ -152,38 +159,35 @@ router.post('/webhook', (req, res) => {
         }
 
         case 'check_availability': {
-          // Use local date to avoid UTC/BST mismatch
+          // Current date helper
           const now = new Date();
-          const defaultDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-          let date = defaultDate;
+          const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const todayStr = toDateStr(now);
+          const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+          const tomorrowStr = toDateStr(tomorrowDate);
 
-          // Parse flexible date formats from the AI agent
+          let date = todayStr;
+
           if (tool_parameters.date) {
-            const raw = tool_parameters.date.trim();
-            // Already YYYY-MM-DD
+            const raw = tool_parameters.date.trim().toLowerCase();
             if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
               date = raw;
-            } else if (raw.toLowerCase() === 'today') {
-              date = defaultDate;
-            } else if (raw.toLowerCase() === 'tomorrow') {
-              const tom = new Date(now);
-              tom.setDate(tom.getDate() + 1);
-              date = `${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
+            } else if (raw === 'today') {
+              date = todayStr;
+            } else if (raw === 'tomorrow') {
+              date = tomorrowStr;
             } else {
-              // Try parsing natural date strings like "June 7, 2026", "7th June", "7/6/2026"
-              const parsed = new Date(raw);
+              // Try parsing, but validate it's not a hallucinated date
+              const parsed = new Date(tool_parameters.date.trim());
               if (!isNaN(parsed.getTime())) {
-                date = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+                date = toDateStr(parsed);
               } else {
-                // Last resort: try adding current year
-                const withYear = new Date(raw + ' ' + now.getFullYear());
-                if (!isNaN(withYear.getTime())) {
-                  date = `${withYear.getFullYear()}-${String(withYear.getMonth()+1).padStart(2,'0')}-${String(withYear.getDate()).padStart(2,'0')}`;
-                }
+                // Default to tomorrow if we can't parse (most callers want "soon")
+                date = tomorrowStr;
               }
             }
           }
-          console.log('check_availability: raw date =', tool_parameters.date, '→ parsed =', date);
+          console.log('check_availability: raw =', tool_parameters.date, '→ parsed =', date, '(today is', todayStr, ')');
           const typeId = tool_parameters.appointment_type_id || tool_parameters.typeId || 1;
           const appts = store.getAll('appointments', { date });
           const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
@@ -211,18 +215,22 @@ router.post('/webhook', (req, res) => {
             }
           }
 
-          // Return clear, AI-friendly response
+          // Return clear, AI-friendly response with current date context
           const topSlots = slots.slice(0, 10);
+          const dateLabel = date === todayStr ? 'today' : date === tomorrowStr ? 'tomorrow' : date;
           result = {
             available: topSlots.length > 0,
             total_available_slots: slots.length,
+            today: todayStr,
+            tomorrow: tomorrowStr,
+            checking_date: date,
             suggested_slots: topSlots.map(s => `${s.startTime} with ${s.staffName}`),
             slots: topSlots,
             date,
             appointment_type: type ? type.name : 'Consultation',
             message: topSlots.length > 0
-              ? `${slots.length} slots available on ${date}. Here are some options: ${topSlots.slice(0, 3).map(s => `${s.startTime} with ${s.staffName}`).join(', ')}`
-              : `No availability on ${date}. Try another date.`
+              ? `${slots.length} slots available ${dateLabel} (${date}). Here are some options: ${topSlots.slice(0, 3).map(s => `${s.startTime} with ${s.staffName}`).join(', ')}`
+              : `No availability ${dateLabel} (${date}). Today is ${todayStr}, tomorrow is ${tomorrowStr}. Try another date.`
           };
           broadcastAction(store, `Checked availability for ${date}`, `GET /api/v1/availability?date=${date}`);
           break;
