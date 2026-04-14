@@ -1294,6 +1294,59 @@ h1, h2, h3, h4 {
   50% { opacity: 0.7; }
 }
 
+/* Full-row highlight for AI-registered clients in the clients table */
+.data-table tr.row-new-client {
+  background: linear-gradient(90deg,
+    rgba(124, 58, 237, 0.12) 0%,
+    rgba(20, 184, 166, 0.08) 60%,
+    transparent 100%);
+  border-left: 3px solid var(--clinevo-purple);
+  animation: newClientRowPulse 2.5s ease-in-out infinite;
+}
+.data-table tr.row-new-client td:first-child {
+  padding-left: 10px;
+}
+@keyframes newClientRowPulse {
+  0%, 100% { background-position: 0% 50%; box-shadow: inset 3px 0 0 var(--clinevo-purple); }
+  50% { box-shadow: inset 3px 0 0 var(--signal-teal); }
+}
+
+.new-client-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--clinevo-purple), var(--signal-teal));
+  box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6);
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: newClientDotPulse 1.6s ease-in-out infinite;
+}
+@keyframes newClientDotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0); }
+}
+
+/* Sidebar flash when a new client lands while user is on another view */
+.nav-flash {
+  animation: navFlash 1s ease-in-out 3;
+  position: relative;
+}
+.nav-flash::after {
+  content: '●';
+  color: var(--clinevo-purple);
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  animation: newClientDotPulse 1.6s ease-in-out infinite;
+}
+@keyframes navFlash {
+  0%, 100% { background: transparent; }
+  50% { background: rgba(124, 58, 237, 0.15); }
+}
+
 .patient-new-badge {
   position: absolute;
   top: 8px;
