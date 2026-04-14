@@ -59,6 +59,9 @@ const DashboardView = {
     const newClients = clients.filter(c => c.createdBy === 'ai-receptionist');
     const newPatients = patients.filter(p => p.createdBy === 'ai-receptionist');
 
+    // Negative feedback / escalations
+    const negativeFeedback = calls.filter(c => c.negativeFlag || c.escalatedToPM || c.sentiment === 'negative');
+
     // Revenue metrics
     const outboundCalls = calls.filter(c => c.direction === 'outbound');
     const reviewsSent = calls.filter(c => c.reviewSent).length;
@@ -82,6 +85,20 @@ const DashboardView = {
     const nav = this._nav.bind(this);
 
     container.innerHTML = `
+      ${negativeFeedback.length > 0 ? `
+      <!-- Negative Feedback Alert Banner -->
+      <div class="dash-alert-banner dash-link" ${nav('callLog', 'post_surgery_followup')}>
+        <span class="dash-alert-banner-icon">🔴</span>
+        <div class="dash-alert-banner-body">
+          <strong>${negativeFeedback.length} Negative Feedback Alert${negativeFeedback.length > 1 ? 's' : ''} — Practice Manager Action Required</strong>
+          <div class="dash-alert-banner-detail">${negativeFeedback.map(c => {
+            const name = clientMap[c.clientId] || 'Unknown';
+            const pet = patientMap[c.patientId] || '';
+            return `${name}${pet ? ' (' + pet + ')' : ''}: ${(c.resolution || c.notes || '').replace(/⚠️ NEGATIVE FEEDBACK — /g, '')}`;
+          }).join(' · ')}</div>
+        </div>
+      </div>` : ''}
+
       <!-- Stats Cards -->
       <div class="dash-stats-grid">
         <div class="dash-stat-card dash-link" ${nav('callLog', 'all')}>
@@ -308,6 +325,18 @@ const DashboardView = {
     const today = State.get('currentDate');
     const todaysCalls = calls.filter(c => c.date === today);
     const alerts = [];
+
+    // NEGATIVE FEEDBACK — escalated to practice manager (highest priority)
+    const negatives = todaysCalls.filter(c => c.negativeFlag || c.escalatedToPM || c.sentiment === 'negative');
+    negatives.forEach(c => {
+      alerts.push({
+        icon: '🔴',
+        type: 'urgent',
+        view: 'callLog', filter: 'post_surgery_followup',
+        text: `Negative feedback: ${clientMap[c.clientId] || 'Unknown'} re: ${patientMap[c.patientId] || 'their pet'} — requires practice manager action`,
+        detail: c.resolution || c.notes || ''
+      });
+    });
 
     // Emergency calls today
     const emergencies = todaysCalls.filter(c => c.outcome === 'emergency_escalated');

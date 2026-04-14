@@ -109,6 +109,7 @@ const CallLogView = {
       const summaryPreview = c.summary ? (c.summary.length > 60 ? c.summary.substring(0, 60) + '...' : c.summary) : '—';
       const dirIcon = c.direction === 'outbound' ? '📤' : (c.status === 'missed' ? '📵' : '📥');
       const reviewIcon = c.reviewSent ? ' <span class="tag tag-review" title="Google review link sent">⭐</span>' : '';
+      const negativeIcon = c.negativeFlag ? ' <span class="tag tag-emergency" title="Negative feedback — escalated to PM">🔴 PM</span>' : '';
 
       return `
         <tr data-call-id="${c.id}">
@@ -117,7 +118,7 @@ const CallLogView = {
           <td>${c.startTime}</td>
           <td>${clientName}</td>
           <td>${patientName}</td>
-          <td><span class="tag ${outcomeClass}">${outcomeLabel}</span>${reviewIcon}</td>
+          <td><span class="tag ${outcomeClass}">${outcomeLabel}</span>${reviewIcon}${negativeIcon}</td>
           <td>${successIcon}</td>
           <td>${sentimentTag}</td>
           <td class="text-small">${summaryPreview}</td>
@@ -155,6 +156,7 @@ const CallLogView = {
       ${call.reviewSent ? `<div class="modal-field"><label>Google Review</label><div class="value"><span class="tag tag-review">⭐ Review link sent automatically</span></div></div>` : ''}
       ${call.revenueRecovered ? `<div class="modal-field"><label>Revenue Recovered</label><div class="value"><span class="tag tag-revenue">+£${call.revenueRecovered}</span></div></div>` : ''}
       ${call.carePlanInterest ? `<div class="modal-field"><label>Care Plan</label><div class="value"><span class="tag tag-booked">Client interested in care plan</span></div></div>` : ''}
+      ${call.negativeFlag ? `<div class="modal-field"><label>⚠️ Escalation</label><div class="value"><span class="tag tag-emergency">Negative feedback — escalated to practice manager</span></div></div>` : ''}
       ${call.rebookStatus ? `
         <div class="modal-field">
           <label>Rebook Status</label>

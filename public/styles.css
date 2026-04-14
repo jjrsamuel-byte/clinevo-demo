@@ -1547,6 +1547,40 @@ h1, h2, h3, h4 {
   margin-top: 2px;
 }
 
+/* Dashboard negative feedback alert banner */
+.dash-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  border-left: 4px solid var(--danger);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dash-alert-banner:hover {
+  background: rgba(231, 76, 60, 0.14);
+}
+.dash-alert-banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.dash-alert-banner-body strong {
+  font-size: 13px;
+  color: var(--danger);
+  display: block;
+  margin-bottom: 2px;
+}
+.dash-alert-banner-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 /* Clickable dashboard links */
 .dash-link {
   cursor: pointer;
