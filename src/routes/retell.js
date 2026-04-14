@@ -51,7 +51,9 @@ router.post('/web-call', async (req, res) => {
 
 // Webhook — Retell calls this when the agent uses a custom tool
 router.post('/webhook', (req, res) => {
-  const { call, tools } = req.body;
+  // Log every incoming request so we can see exactly what Retell is sending.
+  // Check Railway logs after a test call to debug shape mismatches.
+  console.log('[retell webhook] body:', JSON.stringify(req.body));
 
   // Handle Retell's different webhook event types
   if (req.body.event === 'call_started') {
@@ -64,15 +66,20 @@ router.post('/webhook', (req, res) => {
     return res.json({});
   }
 
-  // Handle tool calls (Retell Custom LLM / tool use webhook)
-  // Retell sends tool_calls array in the request
+  // Retell sends custom function calls in this shape:
+  //   { name: "check_availability", args: { date: "tomorrow" }, call: {...} }
+  // Custom LLM agents instead send:
+  //   { tool_calls: [{ tool_call_id, tool_name, tool_parameters }] }
+  // Detect which mode we're in so we can return the right response shape.
+  const isCustomFunctionMode = typeof req.body.name === 'string' && req.body.tool_calls === undefined;
+
   const toolCalls = req.body.tool_calls || [];
-  if (toolCalls.length === 0 && req.body.tool_call_id) {
-    // Single tool call format
+  if (toolCalls.length === 0 && (req.body.tool_call_id || req.body.name)) {
+    // Single tool call format — covers both Custom LLM single-call and Custom Function
     toolCalls.push({
-      tool_call_id: req.body.tool_call_id,
-      tool_name: req.body.tool_name,
-      tool_parameters: req.body.tool_parameters || req.body.arguments || {}
+      tool_call_id: req.body.tool_call_id || req.body.call_id || 'single',
+      tool_name: req.body.tool_name || req.body.name,
+      tool_parameters: req.body.tool_parameters || req.body.args || req.body.arguments || {}
     });
   }
 
@@ -346,11 +353,21 @@ router.post('/webhook', (req, res) => {
       result = { error: err.message };
     }
 
-    results.push({ tool_call_id, result: JSON.stringify(result) });
+    results.push({ tool_call_id, result });
   }
 
-  // Return tool results to Retell
-  res.json({ tool_results: results });
+  // Custom Function mode: Retell expects the raw result JSON as the response
+  // body — whatever we return becomes what the LLM "sees" from the function.
+  // Custom LLM mode: Retell expects { tool_results: [{ tool_call_id, result: "<string>" }] }
+  if (isCustomFunctionMode || (results.length === 1 && req.body.tool_calls === undefined)) {
+    const single = results[0] ? results[0].result : { error: 'no tool result' };
+    console.log('[retell webhook] responding (custom-function):', JSON.stringify(single));
+    return res.json(single);
+  }
+
+  const llmPayload = { tool_results: results.map(r => ({ tool_call_id: r.tool_call_id, result: JSON.stringify(r.result) })) };
+  console.log('[retell webhook] responding (custom-llm):', JSON.stringify(llmPayload));
+  res.json(llmPayload);
 });
 
 // Fetch complete call details (transcript) from Retell after call ends
@@ -408,6 +425,7 @@ function broadcastAction(store, text, apiCall) {
     headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
   };
   const r = http.request(options);
+  r.on('error', (err) => console.error('[broadcastAction] SSE post failed:', err.message));
   r.write(postData);
   r.end();
 }
