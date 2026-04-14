@@ -1547,6 +1547,31 @@ h1, h2, h3, h4 {
   margin-top: 2px;
 }
 
+/* Clickable dashboard links */
+.dash-link {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.dash-stat-card.dash-link:hover,
+.revenue-card.dash-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(83, 74, 183, 0.12);
+}
+.dash-outcome-row.dash-link:hover,
+.dash-activity-item.dash-link:hover,
+.enquiry-type-row.dash-link:hover,
+.briefing-appt-row.dash-link:hover,
+.briefing-alert.dash-link:hover {
+  background: rgba(83, 74, 183, 0.04);
+  border-radius: 6px;
+}
+.dash-bar-col.dash-link:hover .dash-bar {
+  opacity: 0.8;
+}
+.dash-section-title.dash-link:hover {
+  color: var(--clinevo-purple);
+}
+
 .dash-stat-teal .dash-stat-value { color: var(--signal-teal); }
 .dash-stat-red .dash-stat-value { color: var(--danger); }
 .dash-stat-purple .dash-stat-value { color: var(--clinevo-purple); }

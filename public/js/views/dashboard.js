@@ -1,5 +1,7 @@
 // Management Dashboard view
 const DashboardView = {
+  _nav(view) { return `onclick="State.set('currentView','${view}')"` },
+
   async render() {
     const main = document.getElementById('main');
     main.innerHTML = `
@@ -70,34 +72,36 @@ const DashboardView = {
       return monthsOverdue > 1;
     });
 
+    const nav = this._nav.bind(this);
+
     container.innerHTML = `
       <!-- Stats Cards -->
       <div class="dash-stats-grid">
-        <div class="dash-stat-card">
+        <div class="dash-stat-card dash-link" ${nav('callLog')}>
           <div class="dash-stat-value">${stats.total}</div>
           <div class="dash-stat-label">Total Calls</div>
         </div>
-        <div class="dash-stat-card dash-stat-teal">
+        <div class="dash-stat-card dash-stat-teal dash-link" ${nav('callLog')}>
           <div class="dash-stat-value">${stats.completed}</div>
           <div class="dash-stat-label">Handled by AI</div>
         </div>
-        <div class="dash-stat-card dash-stat-purple">
+        <div class="dash-stat-card dash-stat-purple dash-link" ${nav('callLog')}>
           <div class="dash-stat-value">${stats.resolutionRate}%</div>
           <div class="dash-stat-label">Resolution Rate</div>
         </div>
-        <div class="dash-stat-card">
+        <div class="dash-stat-card dash-link" ${nav('callLog')}>
           <div class="dash-stat-value">${outboundCalls.length}</div>
           <div class="dash-stat-label">Outbound Calls</div>
         </div>
-        <div class="dash-stat-card dash-stat-teal">
+        <div class="dash-stat-card dash-stat-teal dash-link" ${nav('comms')}>
           <div class="dash-stat-value">${reviewsSent}</div>
           <div class="dash-stat-label">Reviews Sent</div>
         </div>
-        <div class="dash-stat-card dash-stat-green">
+        <div class="dash-stat-card dash-stat-green dash-link" ${nav('clients')}>
           <div class="dash-stat-value">${newClients.length}</div>
           <div class="dash-stat-label">New Clients</div>
         </div>
-        <div class="dash-stat-card dash-stat-red">
+        <div class="dash-stat-card dash-stat-red dash-link" ${nav('callLog')}>
           <div class="dash-stat-value">${stats.missed}</div>
           <div class="dash-stat-label">Missed</div>
         </div>
@@ -105,7 +109,7 @@ const DashboardView = {
 
       <!-- Revenue & Growth Section -->
       <div class="dash-revenue-banner">
-        <div class="revenue-card revenue-recovered">
+        <div class="revenue-card revenue-recovered dash-link" ${nav('callLog')}>
           <div class="revenue-icon">💰</div>
           <div>
             <div class="revenue-value">£${revenueRecovered}</div>
@@ -113,7 +117,7 @@ const DashboardView = {
             <div class="revenue-sub">from ${lapsedReactivated} lapsed client${lapsedReactivated !== 1 ? 's' : ''} reactivated</div>
           </div>
         </div>
-        <div class="revenue-card revenue-reviews">
+        <div class="revenue-card revenue-reviews dash-link" ${nav('comms')}>
           <div class="revenue-icon">⭐</div>
           <div>
             <div class="revenue-value">${reviewsSent} Reviews</div>
@@ -121,7 +125,7 @@ const DashboardView = {
             <div class="revenue-sub">Auto-sent after positive follow-up calls</div>
           </div>
         </div>
-        <div class="revenue-card revenue-care">
+        <div class="revenue-card revenue-care dash-link" ${nav('callLog')}>
           <div class="revenue-icon">🛡️</div>
           <div>
             <div class="revenue-value">${carePlanLeads} Leads</div>
@@ -129,7 +133,7 @@ const DashboardView = {
             <div class="revenue-sub">Clients interested in wellness plans</div>
           </div>
         </div>
-        <div class="revenue-card revenue-noshow">
+        <div class="revenue-card revenue-noshow dash-link" ${nav('callLog')}>
           <div class="revenue-icon">📅</div>
           <div>
             <div class="revenue-value">${noshowRebooked} Rebooked</div>
@@ -137,7 +141,7 @@ const DashboardView = {
             <div class="revenue-sub">${noshowPending} pending · £${noshowRevenue} recovered</div>
           </div>
         </div>
-        <div class="revenue-card revenue-new-clients">
+        <div class="revenue-card revenue-new-clients dash-link" ${nav('clients')}>
           <div class="revenue-icon">👤</div>
           <div>
             <div class="revenue-value">${newClients.length} Client${newClients.length !== 1 ? 's' : ''}</div>
@@ -145,7 +149,7 @@ const DashboardView = {
             <div class="revenue-sub">${newPatients.length} patient${newPatients.length !== 1 ? 's' : ''} registered · auto-created during calls</div>
           </div>
         </div>
-        <div class="revenue-card revenue-lapsed">
+        <div class="revenue-card revenue-lapsed dash-link" ${nav('patients')}>
           <div class="revenue-icon">⚠️</div>
           <div>
             <div class="revenue-value">${lapsedPatients.length} Patients</div>
@@ -159,7 +163,7 @@ const DashboardView = {
       <div class="dash-panels">
         <!-- Tomorrow's Schedule -->
         <div class="card">
-          <h3 class="dash-section-title">📋 Tomorrow <span class="text-small text-muted">(${new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })})</span></h3>
+          <h3 class="dash-section-title dash-link" ${nav('calendar')}>📋 Tomorrow <span class="text-small text-muted">(${new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })})</span></h3>
           ${tomorrowAppts.length === 0
             ? '<div class="text-muted text-center" style="padding:12px">No appointments booked</div>'
             : `<div class="dash-tomorrow-list" style="max-height:260px;overflow-y:auto">
@@ -173,7 +177,7 @@ const DashboardView = {
                     : '';
                   const isAiBooked = a.createdBy === 'ai-receptionist';
                   return `
-                    <div class="briefing-appt-row">
+                    <div class="briefing-appt-row dash-link" ${nav('calendar')}>
                       <span class="briefing-time">${a.startTime}</span>
                       <span class="briefing-patient">${patientName}</span>
                       <span class="tag" style="background:${type ? type.colour : '#888'};color:white;font-size:10px">${type ? type.name : 'Appt'}</span>
@@ -199,29 +203,29 @@ const DashboardView = {
       <div class="dash-panels">
         <!-- Outcome Breakdown -->
         <div class="card">
-          <h3 class="dash-section-title">Outcome Breakdown</h3>
+          <h3 class="dash-section-title dash-link" ${nav('callLog')}>Outcome Breakdown</h3>
           <div class="dash-outcome-list">
-            ${this.renderOutcomeBar('Appointment Booked', stats.outcomes.appointment_booked || 0, stats.completed, 'var(--clinevo-purple)')}
-            ${this.renderOutcomeBar('Info Provided', stats.outcomes.info_provided || 0, stats.completed, 'var(--signal-teal)')}
-            ${this.renderOutcomeBar('Post-Surgery Follow-up', stats.outcomes.post_surgery_followup || 0, stats.completed, 'var(--forest-teal)')}
-            ${this.renderOutcomeBar('Lapsed Reactivated', stats.outcomes.lapsed_reactivation || 0, stats.completed, 'var(--success)')}
-            ${this.renderOutcomeBar('No-show Rebooked', (stats.outcomes.noshow_rebooked || 0) + (stats.outcomes.cancellation_rebooked || 0), stats.completed, '#E67E22')}
-            ${this.renderOutcomeBar('No-show Pending', stats.outcomes.noshow_pending || 0, stats.completed, '#95A5A6')}
-            ${this.renderOutcomeBar('Callback Requested', stats.outcomes.callback_requested || 0, stats.completed, 'var(--warning)')}
-            ${this.renderOutcomeBar('Emergency Escalated', stats.outcomes.emergency_escalated || 0, stats.completed, 'var(--danger)')}
+            ${this.renderOutcomeBar('Appointment Booked', stats.outcomes.appointment_booked || 0, stats.completed, 'var(--clinevo-purple)', 'callLog')}
+            ${this.renderOutcomeBar('Info Provided', stats.outcomes.info_provided || 0, stats.completed, 'var(--signal-teal)', 'callLog')}
+            ${this.renderOutcomeBar('Post-Surgery Follow-up', stats.outcomes.post_surgery_followup || 0, stats.completed, 'var(--forest-teal)', 'callLog')}
+            ${this.renderOutcomeBar('Lapsed Reactivated', stats.outcomes.lapsed_reactivation || 0, stats.completed, 'var(--success)', 'callLog')}
+            ${this.renderOutcomeBar('No-show Rebooked', (stats.outcomes.noshow_rebooked || 0) + (stats.outcomes.cancellation_rebooked || 0), stats.completed, '#E67E22', 'callLog')}
+            ${this.renderOutcomeBar('No-show Pending', stats.outcomes.noshow_pending || 0, stats.completed, '#95A5A6', 'callLog')}
+            ${this.renderOutcomeBar('Callback Requested', stats.outcomes.callback_requested || 0, stats.completed, 'var(--warning)', 'callLog')}
+            ${this.renderOutcomeBar('Emergency Escalated', stats.outcomes.emergency_escalated || 0, stats.completed, 'var(--danger)', 'callLog')}
           </div>
         </div>
 
         <!-- Recent Activity -->
         <div class="card">
-          <h3 class="dash-section-title">Recent Activity</h3>
+          <h3 class="dash-section-title dash-link" ${nav('callLog')}>Recent Activity</h3>
           <div class="dash-activity-feed">
             ${recentCalls.map(c => {
               const clientName = c.clientId ? (clientMap[c.clientId] || 'Unknown') : 'Unknown caller';
               const icon = this.outcomeIcon(c.outcome, c.status, c.direction);
               const reviewBadge = c.reviewSent ? ' ⭐' : '';
               return `
-                <div class="dash-activity-item">
+                <div class="dash-activity-item dash-link" ${nav('callLog')}>
                   <span class="dash-activity-icon">${icon}</span>
                   <div class="dash-activity-body">
                     <div class="dash-activity-text">${c.resolution || c.notes}${reviewBadge}</div>
@@ -237,13 +241,13 @@ const DashboardView = {
       <!-- Enquiry Type + Volume by Date side by side -->
       <div class="dash-panels">
         <div class="card">
-          <h3 class="dash-section-title">Call Volume by Enquiry Type</h3>
+          <h3 class="dash-section-title dash-link" ${nav('callLog')}>Call Volume by Enquiry Type</h3>
           <div class="dash-enquiry-grid">
             ${this.renderEnquiryTypeBreakdown(calls)}
           </div>
         </div>
         <div class="card">
-          <h3 class="dash-section-title">Call Volume by Date</h3>
+          <h3 class="dash-section-title dash-link" ${nav('callLog')}>Call Volume by Date</h3>
           <div class="dash-volume-chart">
             ${this.renderVolumeChart(stats.byDate)}
           </div>
@@ -252,10 +256,10 @@ const DashboardView = {
     `;
   },
 
-  renderOutcomeBar(label, count, total, color) {
+  renderOutcomeBar(label, count, total, color, view) {
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     return `
-      <div class="dash-outcome-row">
+      <div class="dash-outcome-row dash-link" onclick="State.set('currentView','${view || 'callLog'}')">
         <div class="dash-outcome-label">${label}</div>
         <div class="dash-outcome-bar-wrap">
           <div class="dash-outcome-bar" style="width:${pct}%; background:${color}"></div>
@@ -277,7 +281,7 @@ const DashboardView = {
           const height = maxVal > 0 ? Math.round((val / maxVal) * 100) : 0;
           const label = new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
           return `
-            <div class="dash-bar-col">
+            <div class="dash-bar-col dash-link" onclick="State.set('currentView','callLog')">
               <div class="dash-bar-val">${val}</div>
               <div class="dash-bar" style="height:${height}%"></div>
               <div class="dash-bar-label">${label}</div>
@@ -299,6 +303,7 @@ const DashboardView = {
       alerts.push({
         icon: '🚨',
         type: 'urgent',
+        view: 'callLog',
         text: `Emergency: ${patientMap[c.patientId] || 'Unknown'} (${clientMap[c.clientId] || 'Unknown'}) — ${c.resolution || 'Emergency case'}`,
         detail: c.notes || ''
       });
@@ -310,6 +315,7 @@ const DashboardView = {
       alerts.push({
         icon: '📵',
         type: 'warning',
+        view: 'callLog',
         text: `${missed.length} missed call${missed.length > 1 ? 's' : ''} today — no voicemail left`,
         detail: 'Consider checking if these were potential emergencies'
       });
@@ -321,6 +327,7 @@ const DashboardView = {
       alerts.push({
         icon: '📞',
         type: 'action',
+        view: 'callLog',
         text: `Callback needed: ${clientMap[c.clientId] || 'Unknown'} re: ${patientMap[c.patientId] || 'patient'}`,
         detail: c.resolution || c.notes || ''
       });
@@ -333,6 +340,7 @@ const DashboardView = {
         alerts.push({
           icon: '😟',
           type: 'info',
+          view: 'callLog',
           text: `${c.sentiment} client: ${clientMap[c.clientId] || 'Unknown'} about ${patientMap[c.patientId] || 'their pet'}`,
           detail: c.summary || c.resolution || ''
         });
@@ -345,6 +353,7 @@ const DashboardView = {
       alerts.push({
         icon: '⭐',
         type: 'positive',
+        view: 'comms',
         text: `${reviews.length} Google review link${reviews.length > 1 ? 's' : ''} sent today after positive follow-up calls`,
         detail: reviews.map(c => clientMap[c.clientId] || 'Unknown').join(', ')
       });
@@ -357,6 +366,7 @@ const DashboardView = {
       alerts.push({
         icon: '💰',
         type: 'positive',
+        view: 'callLog',
         text: `£${total} revenue recovered from ${revenue.length} reactivated lapsed client${revenue.length > 1 ? 's' : ''}`,
         detail: ''
       });
@@ -370,6 +380,7 @@ const DashboardView = {
       alerts.push({
         icon: '📅',
         type: rebooked.length > 0 ? 'positive' : 'warning',
+        view: 'calendar',
         text: `No-show/cancellation follow-ups: ${rebooked.length} rebooked, ${pending.length} pending`,
         detail: noshows.map(c => {
           const name = clientMap[c.clientId] || 'Unknown';
@@ -386,6 +397,7 @@ const DashboardView = {
       alerts.push({
         icon: '🛡️',
         type: 'action',
+        view: 'callLog',
         text: `${carePlan.length} client${carePlan.length > 1 ? 's' : ''} expressed interest in wellness/care plans`,
         detail: carePlan.map(c => clientMap[c.clientId] || 'Unknown').join(', ') + ' — follow up to convert'
       });
@@ -397,6 +409,7 @@ const DashboardView = {
       alerts.push({
         icon: '👤',
         type: 'positive',
+        view: 'clients',
         text: `${todaysNewClients.length} new client${todaysNewClients.length > 1 ? 's' : ''} registered by AI during calls`,
         detail: todaysNewClients.map(c => `${c.firstName} ${c.lastName}`).join(', ')
       });
@@ -409,7 +422,7 @@ const DashboardView = {
     const typeClass = { urgent: 'briefing-urgent', warning: 'briefing-warning', action: 'briefing-action', info: 'briefing-info', positive: 'briefing-positive' };
 
     return alerts.map(a => `
-      <div class="briefing-alert ${typeClass[a.type] || ''}">
+      <div class="briefing-alert ${typeClass[a.type] || ''} dash-link" onclick="State.set('currentView','${a.view || 'callLog'}')">
         <span class="briefing-alert-icon">${a.icon}</span>
         <div class="briefing-alert-body">
           <div class="briefing-alert-text">${a.text}</div>
@@ -458,7 +471,7 @@ const DashboardView = {
       const pct = total > 0 ? Math.round((t.count / total) * 100) : 0;
       const barPct = maxCount > 0 ? Math.round((t.count / maxCount) * 100) : 0;
       return `
-        <div class="enquiry-type-row">
+        <div class="enquiry-type-row dash-link" onclick="State.set('currentView','callLog')">
           <div class="enquiry-type-info">
             <div class="enquiry-type-label">${t.label}</div>
             <div class="enquiry-type-bar-wrap">
