@@ -15,6 +15,8 @@ const SSE = {
       'appointments:created', 'appointments:updated', 'appointments:removed',
       'comms:created',
       'calls:created', 'calls:updated',
+      'clients:created', 'clients:updated',
+      'patients:created', 'patients:updated',
       'reset'
     ];
 
