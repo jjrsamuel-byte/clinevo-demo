@@ -192,11 +192,34 @@ router.post('/webhook', (req, res) => {
               skipCarePlanUpsell: carePlanPitchedWithin30d
             };
 
+            // Upcoming appointments for this client — the agent needs this to
+            // handle reschedule requests ("I want to move my appointment").
+            // Without it, the agent has no way to identify the existing booking
+            // and would just create a duplicate.
+            const staffById = Object.fromEntries(store.getAll('staff').map(s => [s.id, s]));
+            const typeById = Object.fromEntries(store.getAll('appointment_types').map(t => [t.id, t]));
+            const patientById = Object.fromEntries(patients.map(p => [p.id, p]));
+            const upcomingAppointments = store.getAll('appointments', { clientId: client.id })
+              .filter(a => a.status !== 'cancelled' && a.date >= todayStr)
+              .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))
+              .map(a => ({
+                appointment_id: a.id,
+                date: a.date,
+                start_time: a.startTime,
+                end_time: a.endTime,
+                patient_id: a.patientId,
+                patient_name: patientById[a.patientId] ? patientById[a.patientId].name : null,
+                appointment_type: typeById[a.typeId] ? typeById[a.typeId].name : null,
+                vet: staffById[a.staffId] ? staffById[a.staffId].name : null,
+                notes: a.notes || ''
+              }));
+
             result = {
               found: true,
               today: todayStr,
               tomorrow: tomorrowStr,
               recent_contact: recent,
+              upcoming_appointments: upcomingAppointments,
               client: {
                 id: client.id,
                 name: `${client.title || ''} ${client.firstName} ${client.lastName}`.trim(),
