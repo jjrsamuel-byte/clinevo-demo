@@ -221,7 +221,7 @@ Closing: "Anything else I can help with? Lovely, we'll see you then. Thanks for 
 
 ## 3. Custom Tools
 
-Add these 4 custom tools to the agent. Set the webhook URL to your deployed demo URL.
+Add these 5 custom tools to the agent. Set the webhook URL to your deployed demo URL.
 
 ### Tool 1: search_client
 - **Name:** `search_client`
@@ -260,6 +260,26 @@ Add these 4 custom tools to the agent. Set the webhook URL to your deployed demo
   - `patient_id` (integer, optional): Patient ID
   - `channel` (string, required): "sms" or "email"
   - `message` (string, required): Confirmation message text
+
+### Tool 5: register_new_client
+- **Name:** `register_new_client`
+- **Description:** Register a new client (pet owner) and their pet in the practice management system. Use this when `search_client` returns `found: false` and the caller wants to book an appointment. Collect name + phone + pet name/species at minimum; other fields are optional. Do NOT abandon the booking to gather more info upfront — register with what you have, then proceed to check_availability and book_appointment.
+- **Webhook URL:** `https://YOUR-DEMO-URL/api/v1/retell/webhook`
+- **Parameters:**
+  - `first_name` (string, required): Caller's first name
+  - `last_name` (string, required): Caller's last name
+  - `phone` (string, required): Caller's phone number
+  - `email` (string, optional): Email address
+  - `address` (string, optional): Street address
+  - `postcode` (string, optional): Postcode
+  - `pet_name` (string, optional): Pet's name
+  - `pet_species` (string, optional): e.g. "Dog", "Cat"
+  - `pet_breed` (string, optional): Breed
+  - `pet_colour` (string, optional): Colour/markings
+  - `pet_sex` (string, optional): "Male", "Female", or neutered variants
+  - `pet_dob` (string, optional): Date of birth (YYYY-MM-DD) or age
+  - `pet_weight` (string, optional): Weight with units
+  - `notes` (string, optional): Any extra context
 
 ## 4. Environment Variables
 
