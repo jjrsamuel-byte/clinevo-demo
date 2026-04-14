@@ -14,9 +14,29 @@ router.post('/web-call', async (req, res) => {
     const Retell = require('retell-sdk');
     const client = new Retell({ apiKey });
 
+    // Inject the current date/time into the agent so it never has to ask.
+    // These are consumed via {{today}}, {{tomorrow}}, etc. in the Retell system prompt.
+    const now = new Date();
+    const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfter = new Date(now); dayAfter.setDate(dayAfter.getDate() + 2);
+    const dayOfWeek = now.toLocaleDateString('en-GB', { weekday: 'long' });
+    const tomorrowDayOfWeek = tomorrow.toLocaleDateString('en-GB', { weekday: 'long' });
+    const longDate = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+
     const webCall = await client.call.createWebCall({
       agent_id: agentId,
-      metadata: { demo: true, source: 'clinevo-demo' }
+      metadata: { demo: true, source: 'clinevo-demo' },
+      retell_llm_dynamic_variables: {
+        today: toDateStr(now),
+        tomorrow: toDateStr(tomorrow),
+        day_after_tomorrow: toDateStr(dayAfter),
+        day_of_week: dayOfWeek,
+        tomorrow_day_of_week: tomorrowDayOfWeek,
+        long_date: longDate,
+        current_time: currentTime
+      }
     });
 
     res.json({
