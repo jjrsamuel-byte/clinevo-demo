@@ -171,10 +171,32 @@ router.post('/webhook', (req, res) => {
             // Tie the live call record to this identified client + first patient
             // so Call Log / Audit Log can show who phoned in.
             attachIdentifiedClient(retellCallId, client.id, patients[0] && patients[0].id);
+
+            // Recency gate — look at prior completed inbound calls for this
+            // client (excluding the one currently in progress). The prompt uses
+            // this to skip the "how's Duke?" pleasantry and the care plan
+            // upsell when the caller rang in the last couple of days.
+            const priorCalls = store.getAll('calls', { clientId: client.id })
+              .filter(c => c.callId !== retellCallId && c.direction === 'inbound' && c.date && c.startTime)
+              .map(c => ({ at: new Date(`${c.date}T${c.startTime}:00`), carePlanPitched: !!c.carePlanPitched }))
+              .filter(c => !isNaN(c.at.getTime()))
+              .sort((a, b) => b.at - a.at);
+            const lastCall = priorCalls[0] || null;
+            const hoursSinceLastCall = lastCall ? Math.round((now - lastCall.at) / 3600000) : null;
+            const carePlanPitchedWithin30d = priorCalls.some(c => c.carePlanPitched && (now - c.at) < 30 * 86400000);
+            const recent = {
+              hoursSinceLastCall,
+              calledWithin48h: hoursSinceLastCall !== null && hoursSinceLastCall < 48,
+              carePlanPitchedWithin30d,
+              skipPetPleasantry: hoursSinceLastCall !== null && hoursSinceLastCall < 48,
+              skipCarePlanUpsell: carePlanPitchedWithin30d
+            };
+
             result = {
               found: true,
               today: todayStr,
               tomorrow: tomorrowStr,
+              recent_contact: recent,
               client: {
                 id: client.id,
                 name: `${client.title || ''} ${client.firstName} ${client.lastName}`.trim(),
@@ -417,22 +439,50 @@ router.post('/webhook', (req, res) => {
           const endMin = sh * 60 + sm + duration;
           const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
-          const appt = store.create('appointments', {
-            clientId,
-            patientId,
-            staffId,
-            typeId: p.appointment_type_id || p.typeId || 1,
-            date,
-            startTime,
-            endTime,
-            status: 'confirmed',
-            notes: p.notes || p.reason || '',
-            createdBy: 'ai-receptionist'
-          });
+          // Reschedule-aware: if this patient already has a future appointment,
+          // MOVE it in place instead of creating a duplicate. This covers the
+          // case where the caller says "move Duke's appointment" — the agent
+          // only has book_appointment, so without this we'd stack two blocks
+          // on the diary.
+          const todayStrForMove = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const existingFuture = (patientId && clientId)
+            ? store.getAll('appointments', { patientId, clientId })
+                .filter(a => a.status !== 'cancelled' && a.date >= todayStrForMove)
+                .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime))[0]
+            : null;
+
+          let appt;
+          let wasReschedule = false;
+          if (existingFuture) {
+            appt = store.update('appointments', existingFuture.id, {
+              staffId,
+              typeId: p.appointment_type_id || p.typeId || existingFuture.typeId,
+              date,
+              startTime,
+              endTime,
+              status: 'confirmed',
+              notes: p.notes || p.reason || existingFuture.notes || '',
+              createdBy: 'ai-receptionist'
+            });
+            wasReschedule = true;
+          } else {
+            appt = store.create('appointments', {
+              clientId,
+              patientId,
+              staffId,
+              typeId: p.appointment_type_id || p.typeId || 1,
+              date,
+              startTime,
+              endTime,
+              status: 'confirmed',
+              notes: p.notes || p.reason || '',
+              createdBy: 'ai-receptionist'
+            });
+          }
 
           const bookedStaff = store.getById('staff', appt.staffId);
-          result = { success: true, appointment_id: appt.id, date: appt.date, time: appt.startTime, end_time: appt.endTime, vet: bookedStaff ? bookedStaff.name : 'TBC', message: `Appointment booked for ${appt.startTime} on ${appt.date}${bookedStaff ? ' with ' + bookedStaff.name : ''}` };
-          broadcastAction(store, `Booked appointment #${appt.id}`, 'POST /api/v1/appointments');
+          result = { success: true, appointment_id: appt.id, date: appt.date, time: appt.startTime, end_time: appt.endTime, vet: bookedStaff ? bookedStaff.name : 'TBC', rescheduled: wasReschedule, message: `Appointment ${wasReschedule ? 'moved' : 'booked'} for ${appt.startTime} on ${appt.date}${bookedStaff ? ' with ' + bookedStaff.name : ''}` };
+          broadcastAction(store, `${wasReschedule ? 'Moved' : 'Booked'} appointment #${appt.id}`, wasReschedule ? `PATCH /api/v1/appointments/${appt.id}` : 'POST /api/v1/appointments');
 
           // Mark the live call record as a successful booking so Call Log / Audit
           // Log show the right outcome and resolution line.
@@ -445,8 +495,13 @@ router.post('/webhook', (req, res) => {
             patientId: appt.patientId,
             outcome: 'appointment_booked',
             successful: true,
-            resolution: `Booked ${apptTypeLabel} for ${patientName}${bookedStaff ? ' with ' + bookedStaff.name : ''}, ${appt.date} ${appt.startTime}`,
-            notes: appt.notes || `${apptTypeLabel} booked via AI receptionist`
+            resolution: `${wasReschedule ? 'Moved' : 'Booked'} ${apptTypeLabel} for ${patientName}${bookedStaff ? ' with ' + bookedStaff.name : ''}, ${appt.date} ${appt.startTime}`,
+            notes: appt.notes || `${apptTypeLabel} ${wasReschedule ? 'moved' : 'booked'} via AI receptionist`,
+            // The prompt mandates the care plan upsell after every Justin
+            // booking, so "booked" is the most reliable signal we have that
+            // the pitch was delivered. This flag is read back by search_client
+            // on the next call to suppress a repeat pitch within 30 days.
+            carePlanPitched: appt.clientId === 16
           });
           break;
         }
