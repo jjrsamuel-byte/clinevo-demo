@@ -159,10 +159,10 @@ const DashboardView = {
       <div class="dash-panels">
         <!-- Tomorrow's Schedule -->
         <div class="card">
-          <h3 class="dash-section-title">📋 Tomorrow's Schedule <span class="text-small text-muted">(${new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })})</span></h3>
+          <h3 class="dash-section-title">📋 Tomorrow <span class="text-small text-muted">(${new Date(tomorrow + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })})</span></h3>
           ${tomorrowAppts.length === 0
-            ? '<div class="text-muted text-center" style="padding:16px">No appointments booked</div>'
-            : `<div class="dash-tomorrow-list">
+            ? '<div class="text-muted text-center" style="padding:12px">No appointments booked</div>'
+            : `<div class="dash-tomorrow-list" style="max-height:260px;overflow-y:auto">
                 ${tomorrowAppts.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(a => {
                   const staff = State.getStaffById(a.staffId);
                   const type = State.getTypeById(a.typeId);
@@ -189,7 +189,7 @@ const DashboardView = {
 
         <!-- Key Info from Today -->
         <div class="card">
-          <h3 class="dash-section-title">🔔 Key Information for Practice Manager</h3>
+          <h3 class="dash-section-title">🔔 Practice Manager Briefing</h3>
           <div class="briefing-alerts">
             ${this.generateBriefingAlerts(calls, patients, clients, clientMap, patientMap)}
           </div>
@@ -234,19 +234,19 @@ const DashboardView = {
         </div>
       </div>
 
-      <!-- Call Volume by Enquiry Type -->
-      <div class="card mt-16">
-        <h3 class="dash-section-title">Call Volume by Enquiry Type</h3>
-        <div class="dash-enquiry-grid">
-          ${this.renderEnquiryTypeBreakdown(calls)}
+      <!-- Enquiry Type + Volume by Date side by side -->
+      <div class="dash-panels">
+        <div class="card">
+          <h3 class="dash-section-title">Call Volume by Enquiry Type</h3>
+          <div class="dash-enquiry-grid">
+            ${this.renderEnquiryTypeBreakdown(calls)}
+          </div>
         </div>
-      </div>
-
-      <!-- Call Volume by Date -->
-      <div class="card mt-16">
-        <h3 class="dash-section-title">Call Volume by Date</h3>
-        <div class="dash-volume-chart">
-          ${this.renderVolumeChart(stats.byDate)}
+        <div class="card">
+          <h3 class="dash-section-title">Call Volume by Date</h3>
+          <div class="dash-volume-chart">
+            ${this.renderVolumeChart(stats.byDate)}
+          </div>
         </div>
       </div>
     `;
