@@ -202,22 +202,38 @@ router.post('/webhook', (req, res) => {
 
         case 'book_appointment': {
           const p = tool_parameters;
+
+          // Auto-fill defaults for demo robustness
+          const now = new Date();
+          const defaultDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const clientId = p.client_id || p.clientId || 0;
+          const patientId = p.patient_id || p.patientId || 0;
+          let staffId = p.staff_id || p.staffId;
+          const startTime = p.start_time || p.startTime || p.time || '10:00';
+          const date = p.date || defaultDate;
+
+          // If no staff specified, pick first available vet
+          if (!staffId) {
+            const vets = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
+            staffId = vets.length > 0 ? vets[0].id : 1;
+          }
+
           const type = store.getById('appointment_types', p.appointment_type_id || p.typeId || 1);
           const duration = type ? type.duration : 20;
-          const [sh, sm] = (p.start_time || p.startTime || '09:00').split(':').map(Number);
+          const [sh, sm] = startTime.split(':').map(Number);
           const endMin = sh * 60 + sm + duration;
           const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
 
           const appt = store.create('appointments', {
-            clientId: p.client_id || p.clientId,
-            patientId: p.patient_id || p.patientId,
-            staffId: p.staff_id || p.staffId,
+            clientId,
+            patientId,
+            staffId,
             typeId: p.appointment_type_id || p.typeId || 1,
-            date: p.date || new Date().toISOString().split('T')[0],
-            startTime: p.start_time || p.startTime || '09:00',
-            endTime: endTime,
+            date,
+            startTime,
+            endTime,
             status: 'confirmed',
-            notes: p.notes || '',
+            notes: p.notes || p.reason || '',
             createdBy: 'ai-receptionist'
           });
 
@@ -269,13 +285,22 @@ router.get('/call/:callId', async (req, res) => {
     const Retell = require('retell-sdk');
     const client = new Retell({ apiKey });
     const call = await client.call.retrieve(req.params.callId);
+
+    // Log available fields for debugging
+    const fields = Object.keys(call).filter(k => call[k] != null);
+    console.log('Retell call fields:', fields.join(', '));
+
+    // Try all possible transcript field names across SDK versions
+    const transcriptObj = call.transcript_object || call.transcriptObject || call.transcript_with_tool_calls || [];
+    const transcriptText = call.transcript || '';
+
     res.json({
-      callId: call.call_id,
-      transcript: call.transcript || '',
-      transcriptObject: call.transcript_object || [],
-      callAnalysis: call.call_analysis || null,
-      startTimestamp: call.start_timestamp,
-      endTimestamp: call.end_timestamp
+      callId: call.call_id || call.callId,
+      transcript: transcriptText,
+      transcriptObject: transcriptObj,
+      callAnalysis: call.call_analysis || call.callAnalysis || null,
+      // Pass the raw call object so frontend can extract what it needs
+      raw: call
     });
   } catch (err) {
     console.error('Retell call fetch error:', err.message);

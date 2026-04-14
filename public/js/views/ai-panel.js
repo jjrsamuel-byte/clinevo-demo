@@ -292,12 +292,17 @@ const AIPanel = {
 
       let transcriptMsgs = [];
 
-      if (data.transcriptObject && data.transcriptObject.length > 0) {
-        transcriptMsgs = data.transcriptObject.map(utt => ({
+      // Try structured transcript object first
+      const tObj = data.transcriptObject || (data.raw && (data.raw.transcript_object || data.raw.transcriptObject)) || [];
+      if (tObj.length > 0) {
+        transcriptMsgs = tObj.map(utt => ({
           role: (utt.role === 'agent' || utt.role === 'assistant') ? 'ai' : 'caller',
-          text: utt.content || utt.text || ''
+          text: utt.content || utt.text || utt.words?.map(w => w.word).join(' ') || ''
         })).filter(m => m.text.trim());
-      } else if (data.transcript) {
+      }
+
+      // Fall back to plain text transcript
+      if (transcriptMsgs.length === 0 && data.transcript) {
         const lines = data.transcript.split('\n').filter(l => l.trim());
         transcriptMsgs = lines.map(line => {
           const isAgent = line.startsWith('Agent:') || line.startsWith('AI:');
