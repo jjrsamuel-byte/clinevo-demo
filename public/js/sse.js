@@ -13,7 +13,7 @@ const SSE = {
     // Store change events
     const changeTypes = [
       'appointments:created', 'appointments:updated', 'appointments:removed',
-      'comms:created',
+      'comms:created', 'comms:updated',
       'calls:created', 'calls:updated',
       'clients:created', 'clients:updated',
       'patients:created', 'patients:updated',

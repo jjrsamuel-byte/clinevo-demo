@@ -200,9 +200,12 @@ const AuditLogView = {
 };
 
 // SSE: refresh on new activity
-SSE.on('calls:created', () => {
+const _refreshAuditLog = () => {
   if (State.get('currentView') === 'auditLog') AuditLogView.loadAudit();
-});
-SSE.on('comms:created', () => {
-  if (State.get('currentView') === 'auditLog') AuditLogView.loadAudit();
-});
+};
+SSE.on('calls:created', _refreshAuditLog);
+SSE.on('calls:updated', _refreshAuditLog);
+SSE.on('comms:created', _refreshAuditLog);
+SSE.on('comms:updated', _refreshAuditLog);
+SSE.on('appointments:created', _refreshAuditLog);
+SSE.on('appointments:updated', _refreshAuditLog);

@@ -552,13 +552,16 @@ const DashboardView = {
   }
 };
 
-// SSE: refresh dashboard on new calls or new clients
-SSE.on('calls:created', () => {
+// SSE: refresh dashboard on any call/client/patient/appointment/comms change
+const _refreshDashboard = () => {
   if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
-});
-SSE.on('clients:created', () => {
-  if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
-});
-SSE.on('patients:created', () => {
-  if (State.get('currentView') === 'dashboard') DashboardView.loadDashboard();
-});
+};
+SSE.on('calls:created', _refreshDashboard);
+SSE.on('calls:updated', _refreshDashboard);
+SSE.on('clients:created', _refreshDashboard);
+SSE.on('clients:updated', _refreshDashboard);
+SSE.on('patients:created', _refreshDashboard);
+SSE.on('patients:updated', _refreshDashboard);
+SSE.on('appointments:created', _refreshDashboard);
+SSE.on('appointments:updated', _refreshDashboard);
+SSE.on('comms:created', _refreshDashboard);

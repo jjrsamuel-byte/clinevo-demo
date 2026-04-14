@@ -244,6 +244,9 @@ const CallLogView = {
 };
 
 // SSE: refresh on new calls
-SSE.on('calls:created', () => {
+const _refreshCallLog = () => {
   if (State.get('currentView') === 'callLog') CallLogView.loadCalls();
-});
+};
+SSE.on('calls:created', _refreshCallLog);
+SSE.on('calls:updated', _refreshCallLog);
+SSE.on('comms:created', _refreshCallLog);
