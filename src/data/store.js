@@ -31,11 +31,32 @@ class Store extends EventEmitter {
     for (const [key, val] of Object.entries(filters)) {
       if (val === undefined || val === '') continue;
       if (key === 'search') {
-        const q = val.toLowerCase();
+        const rawQ = String(val).toLowerCase().trim();
+        // Tokenise on whitespace/punctuation; drop short filler tokens.
+        const stop = new Set([
+          'mr','mrs','ms','dr','miss','the','and','is','my','name','this','it','a','for','with',
+          'calling','speaking','here','hello','hi','hey','please','book','booking','appointment',
+          'want','need','would','like','just','from','of','to','on','in','im','am','me','i','you',
+          'looking','trying','phone','number','called','call'
+        ]);
+        const tokens = rawQ.split(/[\s,.'"\-_/\\()]+/).filter(t => t && !stop.has(t));
+        // Also extract any digit run from the query for phone matching.
+        const qDigits = rawQ.replace(/\D+/g, '');
         items = items.filter(item => {
-          const searchable = [item.name, item.firstName, item.lastName, item.phone, item.email]
+          const textFields = [item.name, item.firstName, item.lastName, item.email, item.postcode]
             .filter(Boolean).join(' ').toLowerCase();
-          return searchable.includes(q);
+          const phoneDigits = String(item.phone || '').replace(/\D+/g, '');
+          // Phone match: if the query contains >=5 digits, match by digit-substring either way.
+          if (qDigits.length >= 5 && phoneDigits) {
+            // Handle UK +44 ↔ 0 prefix: normalise both to a trailing form.
+            const normQ = qDigits.replace(/^(44|0)/, '');
+            const normP = phoneDigits.replace(/^(44|0)/, '');
+            if (normP.includes(normQ) || normQ.includes(normP)) return true;
+          }
+          // Text match: every non-numeric token must appear somewhere.
+          const textTokens = tokens.filter(t => !/^\d+$/.test(t));
+          if (textTokens.length === 0) return qDigits.length >= 5 ? false : textFields.includes(rawQ);
+          return textTokens.every(t => textFields.includes(t));
         });
       } else {
         items = items.filter(item => String(item[key]) === String(val));
