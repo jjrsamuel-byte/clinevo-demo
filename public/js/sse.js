@@ -13,7 +13,9 @@ const SSE = {
     // Store change events
     const changeTypes = [
       'appointments:created', 'appointments:updated', 'appointments:removed',
-      'comms:created', 'reset'
+      'comms:created',
+      'calls:created', 'calls:updated',
+      'reset'
     ];
 
     for (const type of changeTypes) {
@@ -27,6 +29,12 @@ const SSE = {
     this.source.addEventListener('ai:step', (e) => {
       const data = JSON.parse(e.data);
       this._notify('ai:step', data);
+    });
+
+    // Retell voice-call tool actions (search_client, check_availability, book_appointment, etc.)
+    this.source.addEventListener('retell:action', (e) => {
+      const data = JSON.parse(e.data);
+      this._notify('retell:action', data);
     });
 
     this.source.onerror = () => {

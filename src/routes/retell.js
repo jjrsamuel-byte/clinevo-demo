@@ -55,14 +55,71 @@ router.post('/webhook', (req, res) => {
   // Check Railway logs after a test call to debug shape mismatches.
   console.log('[retell webhook] body:', JSON.stringify(req.body));
 
-  // Handle Retell's different webhook event types
+  // Handle Retell's different webhook event types — persist the call to our
+  // store so it shows up in the Call Log + Audit Log views during/after the call.
   if (req.body.event === 'call_started') {
+    const c = req.body.call || {};
+    const callId = c.call_id || c.callId;
+    if (callId) {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      upsertCallByRetellId(callId, {
+        callId,
+        date: dateStr,
+        startTime: timeStr,
+        direction: 'inbound',
+        status: 'in_progress',
+        successful: false,
+        sentiment: null,
+        outcome: null,
+        notes: 'Live AI receptionist call in progress',
+        createdBy: 'ai-receptionist'
+      });
+    }
     return res.json({});
   }
   if (req.body.event === 'call_ended') {
+    const c = req.body.call || {};
+    const callId = c.call_id || c.callId;
+    if (callId) {
+      const existing = store.getAll('calls', { callId })[0];
+      if (existing) {
+        const now = new Date();
+        const endTimeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        // Compute duration from startTime if present
+        let duration = existing.duration;
+        if (existing.startTime) {
+          const [sh, sm] = existing.startTime.split(':').map(Number);
+          const [eh, em] = endTimeStr.split(':').map(Number);
+          duration = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+        }
+        store.update('calls', existing.id, {
+          endTime: endTimeStr,
+          duration,
+          status: 'completed',
+          successful: existing.outcome === 'appointment_booked' || !!existing.successful
+        });
+      }
+    }
     return res.json({});
   }
   if (req.body.event === 'call_analyzed') {
+    // Retell sends post-call analysis: transcript, summary, sentiment, etc.
+    const c = req.body.call || {};
+    const callId = c.call_id || c.callId;
+    if (callId) {
+      const existing = store.getAll('calls', { callId })[0];
+      if (existing) {
+        const analysis = c.call_analysis || c.callAnalysis || {};
+        store.update('calls', existing.id, {
+          transcript: c.transcript || existing.transcript,
+          summary: analysis.call_summary || analysis.summary || existing.summary,
+          sentiment: analysis.user_sentiment || analysis.sentiment || existing.sentiment,
+          resolution: existing.resolution || analysis.call_summary || null
+        });
+      }
+    }
     return res.json({});
   }
 
@@ -85,6 +142,11 @@ router.post('/webhook', (req, res) => {
 
   const results = [];
 
+  // The Retell webhook payload puts the call object at req.body.call for tool
+  // invocations as well as lifecycle events. Pull the call_id once so each tool
+  // case can attach its work to the right call record.
+  const retellCallId = req.body.call && (req.body.call.call_id || req.body.call.callId);
+
   for (const toolCall of toolCalls) {
     const { tool_call_id, tool_parameters } = toolCall;
     // Normalise tool name: Retell tool names are case-sensitive, but humans
@@ -106,6 +168,9 @@ router.post('/webhook', (req, res) => {
           if (clients.length > 0) {
             const client = clients[0];
             const patients = store.getAll('patients', { clientId: client.id });
+            // Tie the live call record to this identified client + first patient
+            // so Call Log / Audit Log can show who phoned in.
+            attachIdentifiedClient(retellCallId, client.id, patients[0] && patients[0].id);
             result = {
               found: true,
               today: todayStr,
@@ -368,6 +433,21 @@ router.post('/webhook', (req, res) => {
           const bookedStaff = store.getById('staff', appt.staffId);
           result = { success: true, appointment_id: appt.id, date: appt.date, time: appt.startTime, end_time: appt.endTime, vet: bookedStaff ? bookedStaff.name : 'TBC', message: `Appointment booked for ${appt.startTime} on ${appt.date}${bookedStaff ? ' with ' + bookedStaff.name : ''}` };
           broadcastAction(store, `Booked appointment #${appt.id}`, 'POST /api/v1/appointments');
+
+          // Mark the live call record as a successful booking so Call Log / Audit
+          // Log show the right outcome and resolution line.
+          const apptType = store.getById('appointment_types', appt.typeId);
+          const apptTypeLabel = apptType ? apptType.name : 'appointment';
+          const patientForCall = store.getById('patients', appt.patientId);
+          const patientName = patientForCall ? patientForCall.name : 'patient';
+          attachBookingOutcome(retellCallId, {
+            clientId: appt.clientId,
+            patientId: appt.patientId,
+            outcome: 'appointment_booked',
+            successful: true,
+            resolution: `Booked ${apptTypeLabel} for ${patientName}${bookedStaff ? ' with ' + bookedStaff.name : ''}, ${appt.date} ${appt.startTime}`,
+            notes: appt.notes || `${apptTypeLabel} booked via AI receptionist`
+          });
           break;
         }
 
@@ -462,6 +542,36 @@ function broadcastAction(store, text, apiCall) {
   } catch (err) {
     console.error('[broadcastAction] broadcast failed:', err.message);
   }
+}
+
+// --- Call record helpers --------------------------------------------------
+// The Retell webhook receives several events for the same call (call_started,
+// each tool invocation, call_ended, call_analyzed). We persist the call as a
+// single `calls` record keyed by Retell's call_id, and grow it as we go.
+
+function upsertCallByRetellId(retellCallId, patch) {
+  if (!retellCallId) return null;
+  const existing = store.getAll('calls', { callId: retellCallId })[0];
+  if (existing) {
+    return store.update('calls', existing.id, patch);
+  }
+  return store.create('calls', { callId: retellCallId, ...patch });
+}
+
+function attachIdentifiedClient(retellCallId, clientId, patientId) {
+  if (!retellCallId) return;
+  const existing = store.getAll('calls', { callId: retellCallId })[0];
+  // Only set client/patient if not already set, so the first match wins.
+  const patch = {};
+  if (clientId && (!existing || !existing.clientId)) patch.clientId = clientId;
+  if (patientId && (!existing || !existing.patientId)) patch.patientId = patientId;
+  if (Object.keys(patch).length === 0) return;
+  upsertCallByRetellId(retellCallId, patch);
+}
+
+function attachBookingOutcome(retellCallId, fields) {
+  if (!retellCallId) return;
+  upsertCallByRetellId(retellCallId, fields);
 }
 
 module.exports = router;

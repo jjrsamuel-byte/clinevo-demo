@@ -43,4 +43,14 @@
   if (State.get('aiDrawerOpen')) {
     AIPanel.render();
   }
+
+  // When the AI receptionist books an appointment, jump the diary to that
+  // date so the prospect sees the slot fill in live during the demo call.
+  SSE.on('appointments:created', (appt) => {
+    if (!appt || appt.createdBy !== 'ai-receptionist') return;
+    if (appt.date) State.set('currentDate', appt.date);
+    if (State.get('currentView') !== 'calendar') {
+      State.set('currentView', 'calendar');
+    }
+  });
 })();

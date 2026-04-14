@@ -668,7 +668,6 @@ h1, h2, h3, h4 {
 
 .cal-time-row {
   display: grid;
-  min-height: 48px;
   border-bottom: 1px solid rgba(0,0,0,0.04);
 }
 
@@ -683,7 +682,6 @@ h1, h2, h3, h4 {
 .cal-cell {
   border-right: 1px solid rgba(0,0,0,0.04);
   position: relative;
-  min-height: 48px;
 }
 
 .cal-appointment {
