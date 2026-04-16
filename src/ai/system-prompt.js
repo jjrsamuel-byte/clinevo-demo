@@ -1,5 +1,8 @@
 function buildSystemPrompt(store) {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const h = now.getHours();
+  const timeOfDay = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary'));
   const todayAppts = store.getAll('appointments', { date: today });
   const types = store.getAll('appointment_types');
@@ -68,7 +71,9 @@ For emergencies: "This sounds like it could be urgent. Let me get you booked in 
 
 ## Greeting
 
-Always answer: "Good morning/afternoon, Oakwood Veterinary Practice, how can I help you today?"
+The current time period is: **${timeOfDay}** (precomputed — do not second-guess it).
+Always open with: "Good ${timeOfDay}, Oakwood Veterinary Practice, how can I help you today?"
+When signing off, match the sign-off too: "...have a good ${timeOfDay}."
 
 ## Closing
 

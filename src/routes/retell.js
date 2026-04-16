@@ -24,6 +24,13 @@ router.post('/web-call', async (req, res) => {
     const tomorrowDayOfWeek = tomorrow.toLocaleDateString('en-GB', { weekday: 'long' });
     const longDate = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    // Precompute morning/afternoon/evening — the LLM is unreliable at
+    // comparing "22:05" against "12:00" to pick a bucket. Handing it the
+    // literal string eliminates the decision entirely. Derive the hour
+    // from currentTime so both variables stay consistent regardless of
+    // server timezone.
+    const hourNum = parseInt(currentTime.slice(0, 2), 10);
+    const timeOfDay = hourNum < 12 ? 'morning' : hourNum < 17 ? 'afternoon' : 'evening';
 
     const webCall = await client.call.createWebCall({
       agent_id: agentId,
@@ -35,7 +42,8 @@ router.post('/web-call', async (req, res) => {
         day_of_week: dayOfWeek,
         tomorrow_day_of_week: tomorrowDayOfWeek,
         long_date: longDate,
-        current_time: currentTime
+        current_time: currentTime,
+        time_of_day: timeOfDay
       }
     });
 
@@ -315,6 +323,55 @@ router.post('/webhook', (req, res) => {
             message: `New client ${newClient.firstName} ${newClient.lastName} registered${newPatient ? ` with patient ${newPatient.name}` : ''}`
           };
           broadcastAction(store, `Registered new client: ${newClient.firstName} ${newClient.lastName}${newPatient ? ` with ${newPatient.name}` : ''}`, 'POST /api/v1/clients');
+          break;
+        }
+
+        case 'register_new_pet': {
+          // Add a new patient under an EXISTING client. Use when a known
+          // caller (identified via search_client) says they have a new pet
+          // to register — e.g. "I've just got a new puppy". Distinct from
+          // register_new_client which creates the client AND the pet; here
+          // the client already exists and only the patient is added.
+          const p = tool_parameters;
+          const clientId = p.client_id || p.clientId;
+          const existingClient = clientId ? store.getById('clients', clientId) : null;
+          if (!existingClient) {
+            result = { error: `No client found with id ${clientId}. Use register_new_client if the owner is not on file.` };
+            break;
+          }
+          const newPatient = store.create('patients', {
+            clientId: existingClient.id,
+            name: p.pet_name || p.petName || p.name || '',
+            species: p.pet_species || p.petSpecies || p.species || 'Dog',
+            breed: p.pet_breed || p.petBreed || p.breed || 'Unknown',
+            colour: p.pet_colour || p.petColour || p.colour || '',
+            sex: p.pet_sex || p.petSex || p.sex || '',
+            dateOfBirth: p.pet_dob || p.petDob || p.dateOfBirth || '',
+            weight: p.pet_weight || p.petWeight || p.weight || 0,
+            microchip: p.microchip || '',
+            notes: p.notes || '',
+            alerts: [],
+            vaccinationDue: null,
+            createdBy: 'ai-receptionist'
+          });
+          result = {
+            success: true,
+            client: {
+              id: existingClient.id,
+              name: `${existingClient.firstName} ${existingClient.lastName}`.trim()
+            },
+            patient: {
+              id: newPatient.id,
+              name: newPatient.name,
+              species: newPatient.species,
+              breed: newPatient.breed
+            },
+            message: `New pet ${newPatient.name} (${newPatient.species}) added to ${existingClient.firstName} ${existingClient.lastName}'s record`
+          };
+          broadcastAction(store, `Added new pet: ${newPatient.name} (${newPatient.species}) under ${existingClient.firstName} ${existingClient.lastName}`, 'POST /api/v1/patients');
+          // Tie the live call record to this client + new patient so Call
+          // Log / Audit Log attribute the rest of the call correctly.
+          attachIdentifiedClient(retellCallId, existingClient.id, newPatient.id);
           break;
         }
 

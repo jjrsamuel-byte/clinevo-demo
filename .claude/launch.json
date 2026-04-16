@@ -5,6 +5,7 @@
       "name": "clinevo-demo",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
+      "cwd": "/Users/justinsamuel/Clinevo/demo",
       "port": 3000
     }
   ]

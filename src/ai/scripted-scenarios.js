@@ -6,11 +6,20 @@ function getScenarios() {
   ];
 }
 
+// Resolve "morning" / "afternoon" / "evening" from the current clock. Used
+// by the scripted scenarios so a demo run at night doesn't open with a
+// "Good morning" that clashes with the actual time of day.
+function timeOfDay(d = new Date()) {
+  const h = d.getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+
 function getSteps(scenarioId) {
+  const greeting = `Good ${timeOfDay()}, Oakwood Veterinary Practice, how can I help you today?`;
   const scenarios = {
     emergency: [
       { delay: 500, role: 'system', text: '📞 Incoming call...' },
-      { delay: 2000, role: 'ai', text: 'Good morning, Oakwood Veterinary Practice, how can I help you today?' },
+      { delay: 2000, role: 'ai', text: greeting },
       { delay: 3500, role: 'caller', text: "Hi, I'm really worried — my dog's just eaten a whole bar of dark chocolate about 20 minutes ago. He's a small cockapoo, about 8kg. What should I do?" },
       { delay: 2500, role: 'ai', text: "I completely understand your worry, and you've done the right thing calling us straight away. Chocolate can be very dangerous for dogs, especially dark chocolate. Can you tell me roughly how much he ate and how he's behaving right now?" },
       { delay: 3000, role: 'caller', text: "It was a 100g bar of 70% dark chocolate. He seems okay at the moment but he's panting a bit and quite restless." },
@@ -72,7 +81,7 @@ function getSteps(scenarioId) {
 
     routine: [
       { delay: 500, role: 'system', text: '📞 Incoming call...' },
-      { delay: 2000, role: 'ai', text: 'Good morning, Oakwood Veterinary Practice, how can I help you today?' },
+      { delay: 2000, role: 'ai', text: greeting },
       { delay: 3000, role: 'caller', text: "Hi there, I'd like to book my cat in for her annual vaccination please. Her name's Biscuit." },
       { delay: 2000, role: 'ai', text: "Of course! Let me pull up Biscuit's records. Can I take your name?" },
       { delay: 1500, role: 'caller', text: "It's Sarah Thornton." },
@@ -132,7 +141,7 @@ function getSteps(scenarioId) {
 
     faq: [
       { delay: 500, role: 'system', text: '📞 Incoming call...' },
-      { delay: 2000, role: 'ai', text: 'Good afternoon, Oakwood Veterinary Practice, how can I help you today?' },
+      { delay: 2000, role: 'ai', text: greeting },
       { delay: 3000, role: 'caller', text: "Hi, I've just moved to the area and I'm looking for a new vet for my rabbits. Do you see rabbits?" },
       { delay: 2000, role: 'ai', text: "Welcome to the area! Yes, we absolutely do see rabbits. We have Dr Priya Sharma on the team who specialises in exotics, including rabbits, so they'd be in very good hands. Can I help you with anything else about the practice?" },
       { delay: 2500, role: 'caller', text: "That's great to hear. What are your opening hours? And do you do Saturday appointments?" },
