@@ -86,7 +86,8 @@ const CalendarView = {
 
     if (mode === 'week') {
       const weekDates = this.getWeekDates(date);
-      appointments = await API.appointments.listRange(weekDates[0], weekDates[4]);
+      appointments = (await API.appointments.listRange(weekDates[0], weekDates[4]))
+        .filter(a => a.status !== 'cancelled');
 
       // Update date label
       const labelEl = document.getElementById('cal-date-label');
@@ -96,7 +97,8 @@ const CalendarView = {
         labelEl.textContent = `${mon.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${fri.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
       }
     } else {
-      appointments = await API.appointments.list({ date });
+      appointments = (await API.appointments.list({ date }))
+        .filter(a => a.status !== 'cancelled');
 
       const labelEl = document.getElementById('cal-date-label');
       if (labelEl) {

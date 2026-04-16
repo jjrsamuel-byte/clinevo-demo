@@ -167,11 +167,98 @@ router.post('/webhook', (req, res) => {
       switch (tool_name) {
         case 'search_client': {
           const query = tool_parameters.name || tool_parameters.query || tool_parameters.search || '';
-          const clients = store.getAll('clients', { search: query });
+          const postcodeHint = (tool_parameters.postcode || tool_parameters.postCode || '').toString();
+          const phoneLast4Hint = (tool_parameters.phone_last4 || tool_parameters.phoneLast4 || '').toString();
+          let clients = store.getAll('clients', { search: query });
           const now = new Date();
           const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
           const tom = new Date(now); tom.setDate(tom.getDate() + 1);
           const tomorrowStr = `${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
+
+          // Disambiguation — if the name alone matches >1 client, use
+          // postcode or phone-last-4 to narrow. Postcode normalised by
+          // stripping spaces + uppercasing; match is prefix-based so
+          // "SE16" matches "SE16 4RT". Phone match uses the final 4 digits.
+          const normPostcode = (s) => String(s || '').replace(/\s+/g, '').toUpperCase();
+          const lastFourDigits = (s) => {
+            const d = String(s || '').replace(/\D+/g, '');
+            return d.slice(-4);
+          };
+          // The outward code is the part before the space on a UK postcode
+          // ("E9 7HD" → "E9", "SE16 4RT" → "SE16"). Use that directly — a
+          // character-class regex gets the digits wrong for 1-letter areas
+          // like "E9" where "97HD" parses as "9" + "7H".
+          const outwardCode = (s) => String(s || '').trim().toUpperCase().split(/\s+/)[0];
+
+          let narrowedByHint = false;
+          if (clients.length > 1) {
+            if (postcodeHint) {
+              const target = normPostcode(postcodeHint);
+              const narrowed = clients.filter(c => normPostcode(c.postcode).startsWith(target));
+              // If the caller gave a postcode and it matches NOBODY, that's a
+              // signal — either they got the practice wrong or they said the
+              // postcode wrong. Return found: false with a clear message so
+              // the prompt's S07B step 6 fallback kicks in.
+              if (narrowed.length === 0) {
+                result = {
+                  found: false,
+                  multiple: false,
+                  today: todayStr,
+                  tomorrow: tomorrowStr,
+                  match_count: 0,
+                  message: `Postcode "${postcodeHint}" does not match any client named "${query}". The caller may have the wrong practice, or the postcode may be misheard. Do NOT proceed with any booking action — check with the caller.`
+                };
+                broadcastAction(store, `Search narrowed to 0 — postcode "${postcodeHint}" doesn't match "${query}"`, `GET /api/v1/clients?search=${query}&postcode=${postcodeHint}`);
+                break;
+              }
+              clients = narrowed;
+              narrowedByHint = true;
+            }
+            if (clients.length > 1 && phoneLast4Hint) {
+              const target = lastFourDigits(phoneLast4Hint);
+              if (target.length === 4) {
+                const narrowed = clients.filter(c => lastFourDigits(c.phone) === target);
+                if (narrowed.length === 0) {
+                  result = {
+                    found: false,
+                    multiple: false,
+                    today: todayStr,
+                    tomorrow: tomorrowStr,
+                    match_count: 0,
+                    message: `Last four digits "${phoneLast4Hint}" do not match any client named "${query}". Check with the caller before proceeding.`
+                  };
+                  broadcastAction(store, `Search narrowed to 0 — phone_last4 "${phoneLast4Hint}" doesn't match "${query}"`, `GET /api/v1/clients?search=${query}`);
+                  break;
+                }
+                clients = narrowed;
+                narrowedByHint = true;
+              }
+            }
+          }
+
+          // Still ambiguous — return a disambiguation response with lightly
+          // masked candidate info (enough to pick the right person verbally
+          // without reading out full postcodes or phone numbers).
+          if (clients.length > 1) {
+            const candidates = clients.slice(0, 5).map(c => ({
+              candidate_id: c.id,
+              first_name: c.firstName,
+              last_initial: (c.lastName || '').slice(0, 1).toUpperCase(),
+              postcode_district: outwardCode(c.postcode),
+              phone_last4: lastFourDigits(c.phone)
+            }));
+            result = {
+              found: true,
+              multiple: true,
+              today: todayStr,
+              tomorrow: tomorrowStr,
+              match_count: clients.length,
+              candidates,
+              message: `Multiple clients match "${query}"${narrowedByHint ? ' even after narrowing' : ''}. Ask the caller for their postcode (first part is fine) and call search_client again with that postcode. Do NOT book, move, or cancel anything until you have a single match.`
+            };
+            broadcastAction(store, `Search ambiguous — ${clients.length} matches for "${query}"`, `GET /api/v1/clients?search=${query}`);
+            break;
+          }
 
           if (clients.length > 0) {
             const client = clients[0];
@@ -582,6 +669,58 @@ router.post('/webhook', (req, res) => {
             // the pitch was delivered. This flag is read back by search_client
             // on the next call to suppress a repeat pitch within 30 days.
             carePlanPitched: appt.clientId === 16
+          });
+          break;
+        }
+
+        case 'cancel_appointment': {
+          const p = tool_parameters;
+          const apptId = p.appointment_id || p.appointmentId || p.id;
+          const reason = p.reason || p.cancellation_reason || '';
+
+          const existing = apptId ? store.getById('appointments', apptId) : null;
+          if (!existing) {
+            result = { success: false, error: `No appointment found with id ${apptId}. Use search_client to look up the caller's upcoming_appointments and pass the real appointment_id.` };
+            broadcastAction(store, `Cancel failed — appointment #${apptId} not found`, `PATCH /api/v1/appointments/${apptId}`);
+            break;
+          }
+          if (existing.status === 'cancelled') {
+            result = { success: false, error: `Appointment #${existing.id} is already cancelled.` };
+            break;
+          }
+
+          const cancelled = store.update('appointments', existing.id, {
+            status: 'cancelled',
+            cancellationReason: reason,
+            cancelledAt: new Date().toISOString(),
+            cancelledBy: 'ai-receptionist'
+          });
+
+          const apptType = store.getById('appointment_types', cancelled.typeId);
+          const apptTypeLabel = apptType ? apptType.name : 'appointment';
+          const patientForCancel = store.getById('patients', cancelled.patientId);
+          const patientName = patientForCancel ? patientForCancel.name : 'patient';
+          const cancelledStaff = store.getById('staff', cancelled.staffId);
+
+          result = {
+            success: true,
+            appointment_id: cancelled.id,
+            date: cancelled.date,
+            time: cancelled.startTime,
+            vet: cancelledStaff ? cancelledStaff.name : 'TBC',
+            patient_name: patientName,
+            appointment_type: apptTypeLabel,
+            message: `Appointment #${cancelled.id} for ${patientName} on ${cancelled.date} at ${cancelled.startTime} cancelled`
+          };
+          broadcastAction(store, `Cancelled appointment #${cancelled.id} (${apptTypeLabel} for ${patientName})`, `PATCH /api/v1/appointments/${cancelled.id}`);
+
+          attachBookingOutcome(retellCallId, {
+            clientId: cancelled.clientId,
+            patientId: cancelled.patientId,
+            outcome: 'appointment_cancelled',
+            successful: true,
+            resolution: `Cancelled ${apptTypeLabel} for ${patientName}${cancelledStaff ? ' with ' + cancelledStaff.name : ''}, ${cancelled.date} ${cancelled.startTime}${reason ? ' — ' + reason : ''}`,
+            notes: reason || `${apptTypeLabel} cancelled via AI receptionist`
           });
           break;
         }
