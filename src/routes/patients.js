@@ -22,7 +22,8 @@ router.get('/:id', (req, res) => {
   const nextComm = comms.find(c => c.status === 'pending') || null;
 
   // Get calls for this patient
-  const calls = store.getAll('calls', { patientId: String(patient.id) });
+  const calls = store.getAll('calls', { patientId: String(patient.id) })
+    .filter(c => c.date && c.startTime);
   calls.sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
   const lastCall = calls[0] || null;
 
