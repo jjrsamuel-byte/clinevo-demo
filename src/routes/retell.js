@@ -319,6 +319,7 @@ router.post('/webhook', (req, res) => {
                 id: client.id,
                 name: `${client.title || ''} ${client.firstName} ${client.lastName}`.trim(),
                 phone: client.phone,
+                date_of_birth: client.dateOfBirth || null,
                 notes: client.notes
               },
               patients: patients.map(p => {
@@ -366,6 +367,7 @@ router.post('/webhook', (req, res) => {
             title: p.title || '',
             firstName: p.first_name || p.firstName || '',
             lastName: p.last_name || p.lastName || '',
+            dateOfBirth: p.date_of_birth || p.dateOfBirth || p.dob || '',
             email: p.email || '',
             phone: p.phone || '',
             address: p.address || '',
@@ -398,8 +400,10 @@ router.post('/webhook', (req, res) => {
             success: true,
             client: {
               id: newClient.id,
-              name: `${newClient.firstName} ${newClient.lastName}`.trim(),
-              phone: newClient.phone
+              name: `${newClient.title || ''} ${newClient.firstName} ${newClient.lastName}`.trim(),
+              title: newClient.title || '',
+              phone: newClient.phone,
+              date_of_birth: newClient.dateOfBirth || null
             },
             patient: newPatient ? {
               id: newPatient.id,
@@ -514,6 +518,24 @@ router.post('/webhook', (req, res) => {
           const fromMin = parseHHMM(tool_parameters.from_time || tool_parameters.fromTime || tool_parameters.preferred_time || tool_parameters.preferredTime);
           const toMin = parseHHMM(tool_parameters.to_time || tool_parameters.toTime);
           console.log('check_availability: raw =', tool_parameters.date, '→ parsed =', date, '| from:', fromMin, 'to:', toMin, '(today is', todayStr, ')');
+
+          // Practice opening hours — must match S03 of the Retell prompt.
+          // Sunday is closed; Saturday is 09:00–13:00; Mon–Fri 08:00–17:00.
+          // Without this gate the webhook would return fake "slots" on Sundays
+          // or late-Saturday afternoons and the agent would happily book them.
+          const dow = new Date(date + 'T00:00:00').getDay(); // 0=Sun … 6=Sat
+          let openHour, closeHour; // closeHour is EXCLUSIVE (last slot starts before closeHour)
+          if (dow === 0) {
+            openHour = null; // closed
+            closeHour = null;
+          } else if (dow === 6) {
+            openHour = 9;
+            closeHour = 13;
+          } else {
+            openHour = 8;
+            closeHour = 17;
+          }
+
           const typeId = tool_parameters.appointment_type_id || tool_parameters.typeId || 1;
           const appts = store.getAll('appointments', { date });
           const staff = store.getAll('staff').filter(s => s.role.includes('Veterinary Surgeon'));
@@ -521,24 +543,26 @@ router.post('/webhook', (req, res) => {
           const duration = type ? type.duration : 20;
 
           const slots = [];
-          for (const vet of staff) {
-            const vetAppts = appts.filter(a => a.staffId === vet.id && a.status !== 'cancelled');
-            const busyTimes = new Set();
-            for (const a of vetAppts) {
-              const [h, m] = a.startTime.split(':').map(Number);
-              const [eh, em] = a.endTime.split(':').map(Number);
-              for (let t = h * 60 + m; t < eh * 60 + em; t += 15) {
-                busyTimes.add(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
+          if (openHour !== null) {
+            for (const vet of staff) {
+              const vetAppts = appts.filter(a => a.staffId === vet.id && a.status !== 'cancelled');
+              const busyTimes = new Set();
+              for (const a of vetAppts) {
+                const [h, m] = a.startTime.split(':').map(Number);
+                const [eh, em] = a.endTime.split(':').map(Number);
+                for (let t = h * 60 + m; t < eh * 60 + em; t += 15) {
+                  busyTimes.add(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
+                }
               }
-            }
-            for (let h = 8; h < 17; h++) {
-              for (const m of [0, 15, 30, 45]) {
-                const minOfDay = h * 60 + m;
-                if (fromMin !== null && minOfDay < fromMin) continue;
-                if (toMin !== null && minOfDay > toMin) continue;
-                const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                if (!busyTimes.has(time)) {
-                  slots.push({ staffId: vet.id, staffName: vet.name, date, startTime: time, specialisms: vet.specialisms });
+              for (let h = openHour; h < closeHour; h++) {
+                for (const m of [0, 15, 30, 45]) {
+                  const minOfDay = h * 60 + m;
+                  if (fromMin !== null && minOfDay < fromMin) continue;
+                  if (toMin !== null && minOfDay > toMin) continue;
+                  const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                  if (!busyTimes.has(time)) {
+                    slots.push({ staffId: vet.id, staffName: vet.name, date, startTime: time, specialisms: vet.specialisms });
+                  }
                 }
               }
             }
@@ -547,19 +571,25 @@ router.post('/webhook', (req, res) => {
           // Return clear, AI-friendly response with current date context
           const topSlots = slots.slice(0, 10);
           const dateLabel = date === todayStr ? 'today' : date === tomorrowStr ? 'tomorrow' : date;
+          const dowLabel = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow];
+          const closedMessage = openHour === null
+            ? `The practice is closed on Sundays. Offer the caller Monday (or another weekday) instead — do NOT book a Sunday appointment.`
+            : `No availability ${dateLabel} (${date}, ${dowLabel}). Today is ${todayStr}, tomorrow is ${tomorrowStr}. Try another date.`;
           result = {
             available: topSlots.length > 0,
             total_available_slots: slots.length,
             today: todayStr,
             tomorrow: tomorrowStr,
             checking_date: date,
+            day_of_week: dowLabel,
+            practice_open: openHour !== null,
             suggested_slots: topSlots.map(s => `${s.startTime} with ${s.staffName}`),
             slots: topSlots,
             date,
             appointment_type: type ? type.name : 'Consultation',
             message: topSlots.length > 0
-              ? `${slots.length} slots available ${dateLabel} (${date}). Here are some options: ${topSlots.slice(0, 3).map(s => `${s.startTime} with ${s.staffName}`).join(', ')}`
-              : `No availability ${dateLabel} (${date}). Today is ${todayStr}, tomorrow is ${tomorrowStr}. Try another date.`
+              ? `${slots.length} slots available ${dateLabel} (${date}, ${dowLabel}). Here are some options: ${topSlots.slice(0, 3).map(s => `${s.startTime} with ${s.staffName}`).join(', ')}`
+              : closedMessage
           };
           broadcastAction(store, `Checked availability for ${date}`, `GET /api/v1/availability?date=${date}`);
           break;
